@@ -1,0 +1,11 @@
+*width
+0.01
+*length
+0.001
+*thickness
+0.001
+*divisions
+2
+*refine
+-0.003,1
+-0.002,0

@@ -1,0 +1,129 @@
+**elementDegree
+1
+**integration
+reduced
+*PARAMETER
+depth=-0.0005
+Lambda=316
+Y=210e6
+Yhigh=Y*2
+Pi=3.141592654
+nu=0.3
+E=Lambda*Y/0.4040262258*(1-nu**2)
+R=0.0005
+mass=1e5
+DT=1e-5
+frequency=1
+friction=0
+v=-0.04
+stylusLocation=0.007
+scale=1
+*NODE,NSET=REFNODE
+1000000,0.0,0.0,0.0
+*PREPRINT,model=yes,history=yes
+**nodes
+**elements
+**topNodes
+**inside
+**outside
+**bottom
+**inlet
+**inletSmall
+**outlet
+**topElements
+**outsideElements
+**inletElements
+**outletElements
+**inletSmall1
+**inletSmall2
+**allButNodes
+*****************************************************************SOLID SECTION,ELSET=BLOCK,MATERIAL=STEEL
+1,
+*SECTION CONTROLS, NAME=SECT,HOURGLASS=STIFFNESS
+*MATERIAL, NAME=STEEL
+*ELASTIC
+<E>,<nu>
+*PLASTIC
+<Y>,0.0
+<Yhigh>,10
+*DENSITY
+7.85e3
+*INITIAL CONDITIONS,TYPE=VELOCITY
+block,2,<v>
+*SURFACE, NAME=SURF1, REGION TYPE=SLIDING
+outsideElements,s6
+topElements,s2
+*SURFACE, NAME=inlet, REGION TYPE=EULERIAN
+inletElements,s5
+*SURFACE, NAME=outlet, REGION TYPE=EULERIAN
+outletElements,s3
+*SURFACE, NAME=inside, REGION TYPE=SLIDING,TYPE=NODE
+insideNodes
+*SURFACE,TYPE=REVOLUTION,NAME=CONE,FILLET RADIUS=<R>
+0.000000 , <stylusLocation> , 0.000000 , 0.000000 , <stylusLocation> , 1.000000 
+START, 0.003093858567 , 0.00125 
+LINE, 0.000000 , 0.000000 
+*RIGID BODY,REF NODE=REFNODE,ANALYTICAL SURFACE=CONE
+*AMPLITUDE,NAME=IN,TIME=TOTAL TIME,DEFINITION=TABULAR 
+0.00,0,0.05,1
+************************************************************************
+*STEP
+*DYNAMIC,EXPLICIT,SCALE FACTOR=<scale>
+,1
+***STEADY STATE DETECTION,ELSET=block,SAMPLING=UNIFORM
+**0,1,0,0, 0.001, 0.0
+***STEADY STATE CRITERIA
+**SSPEEQ,0.001, .002, 0., 0.
+**SSSPRD,0.001, .002, 0., 0.
+**SSTORQ,0.005, .002, 0., 0., REFNODE, 0., 0., 1.
+**SSFORC,0.005, 0., <stylusLocation>, 0.,REFNODE,.0, 0., 1.
+**SSFORC,0.005, 0., <stylusLocation>, 0.,REFNODE,.0, 1., 0.
+*BOUNDARY
+REFNODE,1,2
+REFNODE,4,6
+*BOUNDARY,AMPLITUDE=IN 
+REFNODE,3,3,<depth>
+*BOUNDARY,TYPE=VELOCITY,REGION TYPE=EULERIAN
+inletSmall1,2,2,<v>
+inletSmall2,2,2,<v>
+inletSmall1,1,1,0
+inletSmall2,3,3,0
+*BOUNDARY,TYPE=VELOCITY,REGION TYPE=SLIDING
+allBut,2,2,<v>
+*BOUNDARY,REGION TYPE=SLIDING
+allBut,1,1,0
+allBut,3,3,0
+insideNodes,1,1,0
+***VARIABLE MASS SCALING,TYPE=SET EQUAL DT,DT=<DT>,FREQUENCY=<frequency>
+*FIXED MASS SCALING,FACTOR=<mass>
+*SURFACE INTERACTION,NAME=FRICT
+*FRICTION
+ <friction>,
+*CONTACT PAIR,INTERACTION=FRICT,CPSET=myContact
+SURF1,CONE
+*OUTPUT,FIELD,NUMBER INTERVAL=100
+*NODE OUTPUT
+U,COORD
+*CONTACT OUTPUT
+CSTRESS
+*ELEMENT OUTPUT
+SINV,PEEQ
+*NODE OUTPUT,NSET=REFNODE
+RF
+*OUTPUT,HISTORY
+*CONTACT OUTPUT,CPSET=myContact
+CFN,CAREA
+***********************************************
+*ADAPTIVE MESH,ELSET=block,FREQUENCY=<frequency>,CONTROLS=controller
+*ADAPTIVE MESH CONTROLS,NAME=controller,SMOOTHING OBJECTIVE=UNIFORM,GEOMETRIC ENHANCEMENT=YES,MESH CONSTRAINT ANGLE=30
+1,0,0
+*ADAPTIVE MESH CONSTRAINT,TYPE=DISPLACEMENT
+inletNodes,2,2,0.
+inletNodes,1,1,0.
+inletNodes,3,3,0.
+outletNodes,2,2,0.
+block,2,2,0.
+bottomNodes,1,3,0
+*Restart,write,number interval=1,time marks=NO
+*ENDSTEP
+**nonsence
