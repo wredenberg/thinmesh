@@ -1,0 +1,3 @@
+*NODE,NSET=ALL
+*INCLUDE,INPUT=nodes.dat
+*INCLUDE,INPUT=elements.dat

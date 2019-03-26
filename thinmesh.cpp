@@ -375,6 +375,7 @@ struct nodeBox //contains a vector of nodes
 struct element
 {
 	int eNum;
+	int nodesPerElement=0;
 	vector<int> nodes;
 	coord cg; //center of gravity
 	double wsize;
@@ -398,6 +399,7 @@ struct element
 	void setNodes(vector<int> toSet)//, nodeBox nbox)
 	{
 		nodes=toSet;
+		nodesPerElement=nodes.size();
 		//calcCenterOfGravity(nbox);
 	}
 	
@@ -419,17 +421,18 @@ struct element
 	void calcCenterOfGravity(nodeBox nbox)
 	{
 		double x=0,y=0,z=0;
-				
-		for(int i=0;i<8;i++)
+
+		for(int i=0;i<nodesPerElement;i++)
 		{
 			x=x+nbox.getNode(nodes.at(i)).x;
 			y=y+nbox.getNode(nodes.at(i)).y;
 			z=z+nbox.getNode(nodes.at(i)).z;
 		}
-		cg.x=x/8;
-		cg.y=y/8;
-		cg.z=z/8;
+		cg.x=x/nodesPerElement;
+		cg.y=y/nodesPerElement;
+		cg.z=z/nodesPerElement;
 		
+		//printf("cg %f %f %f \n",cg.x,cg.y,cg.z);
 		wsize=nbox.getNode(nodes.at(1)).x-nbox.getNode(nodes.at(0)).x;
 		
 	}
@@ -872,6 +875,12 @@ struct mesh
 		printf("Generating base mesh...\n");
 		int current_nNum=1;
 		node currentNode;
+
+		if(length==0.0) //if the mesh is 2D
+		{
+			ldiv=0;
+		}
+
 		for(int k=0;k<tdiv+1;k++)
 		{
 			for(int j=0;j<ldiv+1;j++)
@@ -880,20 +889,52 @@ struct mesh
 				{
 					currentNode.nNum=current_nNum;
 					currentNode.x= width*(i/((double) wdiv)-1);
-					currentNode.y= length*j/((double) ldiv);
+					if(ldiv>0){currentNode.y= length*j/((double) ldiv);}
+					else{currentNode.y=0.0;}
 					currentNode.z= thickness*(k/((double) tdiv)-1);
 					nodes.addNode(currentNode);
 					current_nNum++;
 				}
 			}
-			printf("Ply %d done.\n",k);
+			//printf("Ply %d done.\n",k);
 		}
 		
 		int currentElementNum=1;
-		for(int k=1;k<tdiv+1;k++)
+		if(ldiv>0)
 		{
-			for(int j=1;j<ldiv+1;j++)
+			for(int k=1;k<tdiv+1;k++)
 			{
+				for(int j=1;j<ldiv+1;j++)
+				{
+					for(int i=1;i<wdiv+1;i++)
+					{	
+						element currentElement;
+						currentElement.setNumber(currentElementNum);
+						
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+												
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						
+						currentElement.nodesPerElement=8;
+
+						
+						elements.addElement(currentElement);
+						currentElementNum++;
+					}
+				}
+			}
+		}
+		else
+		{
+			for(int k=1;k<tdiv+1;k++)
+			{
+				int j=1;
 				for(int i=1;i<wdiv+1;i++)
 				{	
 					element currentElement;
@@ -903,18 +944,16 @@ struct mesh
 					currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
 					currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
 					currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-					
-					currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-
-					
+											
+					currentElement.nodesPerElement=4;
 					elements.addElement(currentElement);
 					currentElementNum++;
 				}
+			
 			}
+			
 		}
+		
 		printf("Base mesh nodes generated. %d nodes and %d elements.\n",current_nNum-1,currentElementNum-1);
 		return 0;
 	}
@@ -922,7 +961,6 @@ struct mesh
 	void refineMesh()
 	{
 		printf("Refinig mesh...");
-
 		for(int i=0;i<(int)refPoints.size();i++)
 		{
 			refPoint ref;
@@ -939,6 +977,8 @@ struct mesh
 			//transmogrifying
 			toBeTransmogedX=getElementsAt(ref.x,ref.x,-1.0,1000000.0,ref.z,1000000.0);
 			toBeTransmogedZ=getElementsAt(ref.x,100000000,-1.0,1000000.0,ref.z,ref.z);
+
+			//printf("toBeTransmogedX %d",toBeTransmogedX.size());
 			
 			vector<int> cornerElementNumbers; //We dont want to transmog the corner elements
 			cornerElementNumbers=getIntersection(toBeTransmogedX,toBeTransmogedZ);
@@ -1042,85 +1082,178 @@ struct mesh
 	
 	void splitElement(int eToSplit, int type) // Splitts an element into more elements
 	{
-		int tdiv=1;
-		int ldiv=1;
-		int wdiv=1;
-		if(type==0)
+		printf("split element %d, type %d, ldiv %d",eToSplit,type,ldiv);
+		if(ldiv>0) //3D elements
 		{
-			ldiv=3;
-		}
-		else if(type==1) //if it is split the other way (thickness wise)
-		{
-			tdiv=3;
-			ldiv=1;
-			wdiv=3;
-		}
-		else if(type==2) //split in every way
-		{
-			tdiv=3;
-			ldiv=3;
-			wdiv=3;
-		}
-		else
-			printf("Error in split element. Type of split unknown. (type=%d)",type);
-		
-		
-		//printf("Splitting element %d into %d elements",eToSplit,tdiv*ldiv*wdiv);
-		
-		node firstNode;
-		element elementToSplit;
-		elementToSplit=elements.getElement(eToSplit);
-		int firstNodeNum=elementToSplit.getNodes().at(0); // the first node of the element that is about to be splitted
-		firstNode=nodes.getNode(firstNodeNum);
-		
-		double width=nodes.getNode(elementToSplit.getNodes().at(1)).x-nodes.getNode(elementToSplit.getNodes().at(0)).x;
-		double length=nodes.getNode(elementToSplit.getNodes().at(3)).y-nodes.getNode(elementToSplit.getNodes().at(0)).y;
-		double thickness=nodes.getNode(elementToSplit.getNodes().at(5)).z-nodes.getNode(elementToSplit.getNodes().at(0)).z;
-		
-		int current_nNum=nodes.getHighestNodeNumber()+1;
-		int highestNodeNumber=current_nNum;
-		node currentNode;
-		for(int k=0;k<tdiv+1;k++)
-		{
-			for(int j=0;j<ldiv+1;j++)
+			int tdiv=1;
+			int ldiv=1;
+			int wdiv=1;
+			if(type==0)
 			{
-				for(int i=0;i<wdiv+1;i++)
+				ldiv=3;
+			}
+			else if(type==1) //if it is split the other way (thickness wise)
+			{
+				tdiv=3;
+				ldiv=1;
+				wdiv=3;
+			}
+			else if(type==2) //split in every way
+			{
+				tdiv=3;
+				ldiv=3;
+				wdiv=3;
+			}
+			else
+				printf("Error in split element. Type of split unknown. (type=%d)",type);
+			
+			
+			//printf("Splitting element %d into %d elements",eToSplit,tdiv*ldiv*wdiv);
+			
+			node firstNode;
+			element elementToSplit;
+			elementToSplit=elements.getElement(eToSplit);
+			int firstNodeNum=elementToSplit.getNodes().at(0); // the first node of the element that is about to be splitted
+			firstNode=nodes.getNode(firstNodeNum);
+			
+			double width=nodes.getNode(elementToSplit.getNodes().at(1)).x-nodes.getNode(elementToSplit.getNodes().at(0)).x;
+			double length=nodes.getNode(elementToSplit.getNodes().at(3)).y-nodes.getNode(elementToSplit.getNodes().at(0)).y;
+			double thickness=nodes.getNode(elementToSplit.getNodes().at(5)).z-nodes.getNode(elementToSplit.getNodes().at(0)).z;
+			
+			int current_nNum=nodes.getHighestNodeNumber()+1;
+			int highestNodeNumber=current_nNum;
+			node currentNode;
+			for(int k=0;k<tdiv+1;k++)
+			{
+				for(int j=0;j<ldiv+1;j++)
 				{
-					currentNode.nNum=current_nNum;
-					currentNode.x= width*i/((double) wdiv)+firstNode.x;
-					currentNode.y= length*j/((double) ldiv)+firstNode.y;
-					currentNode.z= thickness*k/((double) tdiv)+firstNode.z;
-					nodes.addNode(currentNode);
-					current_nNum++;
+					for(int i=0;i<wdiv+1;i++)
+					{
+						currentNode.nNum=current_nNum;
+						currentNode.x= width*i/((double) wdiv)+firstNode.x;
+						currentNode.y= length*j/((double) ldiv)+firstNode.y;
+						currentNode.z= thickness*k/((double) tdiv)+firstNode.z;
+						nodes.addNode(currentNode);
+						current_nNum++;
+					}
+				}
+			}
+			
+			int currentElementNum=elements.getHighestElementNumber()+1;
+			for(int k=1;k<tdiv+1;k++)
+			{
+				for(int j=1;j<ldiv+1;j++)
+				{
+					for(int i=highestNodeNumber;i<wdiv+highestNodeNumber;i++)
+					{	
+						element currentElement;
+						currentElement.setNumber(currentElementNum);
+						
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+
+						
+						elements.addElement(currentElement);
+						currentElementNum++;
+						
+						//currentElement.printNodes();
+					}
 				}
 			}
 		}
-		
-		int currentElementNum=elements.getHighestElementNumber()+1;
-		for(int k=1;k<tdiv+1;k++)
+		else //2D elements
 		{
-			for(int j=1;j<ldiv+1;j++)
+			int tdiv=1;
+			int ldiv=1;
+			int wdiv=1;
+			if(type==0)
 			{
-				for(int i=highestNodeNumber;i<wdiv+highestNodeNumber;i++)
-				{	
-					element currentElement;
-					currentElement.setNumber(currentElementNum);
-					
-					currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-					
-					currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-					currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+				ldiv=3;
+			}
+			else if(type==1) //if it is split the other way (thickness wise)
+			{
+				tdiv=3;
+				ldiv=1;
+				wdiv=3;
+			}
+			else if(type==2) //split in every way
+			{
+				tdiv=3;
+				ldiv=3;
+				wdiv=3;
+			}
+			else
+				printf("Error in split element. Type of split unknown. (type=%d)",type);
+			
+			
+			printf("Splitting element %d into %d elements",eToSplit,tdiv*ldiv*wdiv);
+			
+			node firstNode;
+			element elementToSplit;
+			elementToSplit=elements.getElement(eToSplit);
+			int firstNodeNum=elementToSplit.getNodes().at(0); // the first node of the element that is about to be splitted
+			firstNode=nodes.getNode(firstNodeNum);
+			printf("first nodenum %d\n",firstNodeNum);
+			double width=nodes.getNode(elementToSplit.getNodes().at(1)).x-nodes.getNode(elementToSplit.getNodes().at(0)).x;
+			printf("debug2");
+			double length=nodes.getNode(elementToSplit.getNodes().at(3)).y-nodes.getNode(elementToSplit.getNodes().at(0)).y;
+			printf("debug3");
+			//double thickness=nodes.getNode(elementToSplit.getNodes().at(5)).z-nodes.getNode(elementToSplit.getNodes().at(0)).z;
+			printf("debug4");
+			
+			int current_nNum=nodes.getHighestNodeNumber()+1;
+			int highestNodeNumber=current_nNum;
+			node currentNode;
+			for(int k=0;k<tdiv+1;k++)
+			{
+				for(int j=0;j<ldiv+1;j++)
+				{
+					for(int i=0;i<wdiv+1;i++)
+					{
+						//printf("%d,%d,%d",k,j,i)
+						currentNode.nNum=current_nNum;
+						currentNode.x= width*i/((double) wdiv)+firstNode.x;
+						currentNode.y= length*j/((double) ldiv)+firstNode.y;
+						currentNode.z= thickness*k/((double) tdiv)+firstNode.z;
+						nodes.addNode(currentNode);
+						current_nNum++;
+					}
+				}
+			}
+			
+			int currentElementNum=elements.getHighestElementNumber()+1;
+			for(int k=1;k<tdiv+1;k++)
+			{
+				for(int j=1;j<ldiv+1;j++)
+				{
+					for(int i=highestNodeNumber;i<wdiv+highestNodeNumber;i++)
+					{	
+						element currentElement;
+						currentElement.setNumber(currentElementNum);
+						
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
 
-					
-					elements.addElement(currentElement);
-					currentElementNum++;
-					
-					//currentElement.printNodes();
+						
+						elements.addElement(currentElement);
+						currentElementNum++;
+						
+						//currentElement.printNodes();
+					}
 				}
 			}
 		}
@@ -1132,1342 +1265,1463 @@ struct mesh
 	void transmogElement(int eToRefine, int type)
 	{
 		//printf("Trying to transmogrify element %d\n",eToRefine);
-		if(type==0)
+		if(ldiv>0) //then this is not a 2D mesh
 		{
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
-			}
-			
-			//create new nodes
-			node node1;
-			node1.nNum=nodes.size();
-			node1.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
-			node1.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
-			node1.z=oldNodes.at(0).z;
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=oldNodes.at(1).x;
-			node2.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
-			node2.z=oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=oldNodes.at(1).x;
-			node3.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
-			node3.z=oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
-			node4.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
-			node4.z=oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
-			node5.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
-			node5.z=oldNodes.at(4).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=oldNodes.at(1).x;
-			node6.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
-			node6.z=oldNodes.at(4).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=oldNodes.at(1).x;
-			node7.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
-			node7.z=oldNodes.at(4).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
-			node8.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
-			node8.z=oldNodes.at(4).z;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(1)=node1.nNum;
-			botNodes.at(2)=node4.nNum;
-			botNodes.at(5)=node5.nNum;
-			botNodes.at(6)=node8.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=oldNodeNumbers.at(1);
-			rightFlankNodes.at(2)=node2.nNum;
-			rightFlankNodes.at(3)=node1.nNum;
-			rightFlankNodes.at(4)=oldNodeNumbers.at(4);
-			rightFlankNodes.at(5)=oldNodeNumbers.at(5);
-			rightFlankNodes.at(6)=node6.nNum;
-			rightFlankNodes.at(7)=node5.nNum;
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node4.nNum;
-			leftFlankNodes.at(1)=node3.nNum;
-			leftFlankNodes.at(2)=oldNodeNumbers.at(2);
-			leftFlankNodes.at(3)=oldNodeNumbers.at(3);
-			leftFlankNodes.at(4)=node8.nNum;
-			leftFlankNodes.at(5)=node7.nNum;
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-		}
-		else if(type==1)
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
-			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double offset=0;
-			node1.nNum=nodes.size();
-			node1.x=w/2+oldNodes.at(0).x+offset;
-			node1.z=h/3+oldNodes.at(0).z;
-			node1.y=oldNodes.at(0).y;
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w+oldNodes.at(0).x+offset;
-			node2.z=h/3+oldNodes.at(0).z;
-			node2.y=oldNodes.at(0).y;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w+oldNodes.at(0).x+offset;
-			node3.z=h/3+oldNodes.at(0).z;
-			node3.y=oldNodes.at(3).y;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=w/2+oldNodes.at(0).x+offset;
-			node4.z=h/3+oldNodes.at(0).z;
-			node4.y=oldNodes.at(3).y;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=w/2+oldNodes.at(0).x+offset;
-			node5.z=h/3.0*2.0+oldNodes.at(0).z+offset;
-			node5.y=oldNodes.at(0).y;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w+oldNodes.at(0).x+offset;
-			node6.z=h/3.0*2.0+oldNodes.at(0).z+offset;
-			node6.y=oldNodes.at(0).y;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w+oldNodes.at(0).x+offset;
-			node7.z=h/3.0*2.0+oldNodes.at(0).z+offset;
-			node7.y=oldNodes.at(3).y;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=w/2+oldNodes.at(0).x+offset;
-			node8.z=h/3.0*2.0+oldNodes.at(0).z+offset;
-			node8.y=oldNodes.at(3).y;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(1)=node1.nNum;
-			botNodes.at(2)=node4.nNum;
-			botNodes.at(5)=node5.nNum;
-			botNodes.at(6)=node8.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=oldNodeNumbers.at(1);
-			rightFlankNodes.at(2)=oldNodeNumbers.at(2);
-			rightFlankNodes.at(3)=oldNodeNumbers.at(3);
-			rightFlankNodes.at(4)=node1.nNum;
-			rightFlankNodes.at(5)=node2.nNum;
-			rightFlankNodes.at(6)=node3.nNum;
-			rightFlankNodes.at(7)=node4.nNum;
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node5.nNum;
-			leftFlankNodes.at(1)=node6.nNum;
-			leftFlankNodes.at(2)=node7.nNum;
-			leftFlankNodes.at(3)=node8.nNum;
-			leftFlankNodes.at(4)=oldNodeNumbers.at(4);
-			leftFlankNodes.at(5)=oldNodeNumbers.at(5);
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-		}
+			if(type==0)
+			{
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
 		
-		else if(type==2)
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				node1.nNum=nodes.size();
+				node1.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
+				node1.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
+				node1.z=oldNodes.at(0).z;
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=oldNodes.at(1).x;
+				node2.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
+				node2.z=oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=oldNodes.at(1).x;
+				node3.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
+				node3.z=oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
+				node4.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
+				node4.z=oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
+				node5.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
+				node5.z=oldNodes.at(4).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=oldNodes.at(1).x;
+				node6.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3+oldNodes.at(0).y;
+				node6.z=oldNodes.at(4).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=oldNodes.at(1).x;
+				node7.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
+				node7.z=oldNodes.at(4).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=(oldNodes.at(1).x-oldNodes.at(0).x)/2+oldNodes.at(0).x;
+				node8.y=(oldNodes.at(3).y-oldNodes.at(0).y)/3*2+oldNodes.at(0).y;
+				node8.z=oldNodes.at(4).z;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(1)=node1.nNum;
+				botNodes.at(2)=node4.nNum;
+				botNodes.at(5)=node5.nNum;
+				botNodes.at(6)=node8.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				rightFlankNodes.at(2)=node2.nNum;
+				rightFlankNodes.at(3)=node1.nNum;
+				rightFlankNodes.at(4)=oldNodeNumbers.at(4);
+				rightFlankNodes.at(5)=oldNodeNumbers.at(5);
+				rightFlankNodes.at(6)=node6.nNum;
+				rightFlankNodes.at(7)=node5.nNum;
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node4.nNum;
+				leftFlankNodes.at(1)=node3.nNum;
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				leftFlankNodes.at(4)=node8.nNum;
+				leftFlankNodes.at(5)=node7.nNum;
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
+			}
+			else if(type==1)
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+
+				
+				for(int i=0;i<oldElement.nodesPerElement;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double offset=0;
+				node1.nNum=nodes.size();
+				node1.x=w/2+oldNodes.at(0).x+offset;
+				node1.z=h/3+oldNodes.at(0).z;
+				node1.y=oldNodes.at(0).y;
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w+oldNodes.at(0).x+offset;
+				node2.z=h/3+oldNodes.at(0).z;
+				node2.y=oldNodes.at(0).y;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w+oldNodes.at(0).x+offset;
+				node3.z=h/3+oldNodes.at(0).z;
+				node3.y=oldNodes.at(3).y;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/2+oldNodes.at(0).x+offset;
+				node4.z=h/3+oldNodes.at(0).z;
+				node4.y=oldNodes.at(3).y;
+				nodes.addNode(node4);		
+				
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=w/2+oldNodes.at(0).x+offset;
+				node5.z=h/3.0*2.0+oldNodes.at(0).z+offset;
+				node5.y=oldNodes.at(0).y;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w+oldNodes.at(0).x+offset;
+				node6.z=h/3.0*2.0+oldNodes.at(0).z+offset;
+				node6.y=oldNodes.at(0).y;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w+oldNodes.at(0).x+offset;
+				node7.z=h/3.0*2.0+oldNodes.at(0).z+offset;
+				node7.y=oldNodes.at(3).y;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=w/2+oldNodes.at(0).x+offset;
+				node8.z=h/3.0*2.0+oldNodes.at(0).z+offset;
+				node8.y=oldNodes.at(3).y;
+				nodes.addNode(node8);	
 			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(1)=node1.nNum;
+				botNodes.at(2)=node4.nNum;
+				botNodes.at(5)=node5.nNum;
+				botNodes.at(6)=node8.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				rightFlankNodes.at(2)=oldNodeNumbers.at(2);
+				rightFlankNodes.at(3)=oldNodeNumbers.at(3);
+				rightFlankNodes.at(4)=node1.nNum;
+				rightFlankNodes.at(5)=node2.nNum;
+				rightFlankNodes.at(6)=node3.nNum;
+				rightFlankNodes.at(7)=node4.nNum;
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node5.nNum;
+				leftFlankNodes.at(1)=node6.nNum;
+				leftFlankNodes.at(2)=node7.nNum;
+				leftFlankNodes.at(3)=node8.nNum;
+				leftFlankNodes.at(4)=oldNodeNumbers.at(4);
+				leftFlankNodes.at(5)=oldNodeNumbers.at(5);
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
 			}
 			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
+			else if(type==2)
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
 
-			node1.nNum=nodes.size();
-			node1.x=w/3+oldNodes.at(0).x;
-			node1.z=h/2+oldNodes.at(0).z;
-			node1.y=oldNodes.at(0).y;
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w/3*2+oldNodes.at(0).x;
-			node2.z=h/2+oldNodes.at(0).z;
-			node2.y=oldNodes.at(0).y;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w/3*2+oldNodes.at(0).x;
-			node3.z=h/2+oldNodes.at(0).z;
-			node3.y=oldNodes.at(3).y;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=w/3+oldNodes.at(0).x;
-			node4.z=h/2+oldNodes.at(0).z;
-			node4.y=oldNodes.at(3).y;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=w/3+oldNodes.at(0).x;
-			node5.z=oldNodes.at(4).z;
-			node5.y=oldNodes.at(0).y;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w/3*2+oldNodes.at(0).x;
-			node6.z=oldNodes.at(4).z;
-			node6.y=oldNodes.at(0).y;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w/3*2+oldNodes.at(0).x;
-			node7.z=oldNodes.at(7).z;
-			node7.y=oldNodes.at(3).y;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=w/3+oldNodes.at(0).x;
-			node8.z=oldNodes.at(7).z;
-			node8.y=oldNodes.at(3).y;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(4)=node1.nNum;
-			botNodes.at(5)=node2.nNum;
-			botNodes.at(6)=node3.nNum;
-			botNodes.at(7)=node4.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=node2.nNum;
-			rightFlankNodes.at(1)=oldNodeNumbers.at(1);
-			rightFlankNodes.at(2)=oldNodeNumbers.at(2);
-			rightFlankNodes.at(3)=node3.nNum;
-			rightFlankNodes.at(4)=node6.nNum;
-			rightFlankNodes.at(5)=oldNodeNumbers.at(5);
-			rightFlankNodes.at(6)=oldNodeNumbers.at(6);
-			rightFlankNodes.at(7)=node7.nNum;
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=oldNodeNumbers.at(0);
-			leftFlankNodes.at(1)=node1.nNum;
-			leftFlankNodes.at(2)=node4.nNum;
-			leftFlankNodes.at(3)=oldNodeNumbers.at(3);
-			leftFlankNodes.at(4)=oldNodeNumbers.at(4);
-			leftFlankNodes.at(5)=node5.nNum;
-			leftFlankNodes.at(6)=node8.nNum;
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-		}
-		else if(type==3)
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				node1.nNum=nodes.size();
+				node1.x=w/3+oldNodes.at(0).x;
+				node1.z=h/2+oldNodes.at(0).z;
+				node1.y=oldNodes.at(0).y;
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w/3*2+oldNodes.at(0).x;
+				node2.z=h/2+oldNodes.at(0).z;
+				node2.y=oldNodes.at(0).y;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w/3*2+oldNodes.at(0).x;
+				node3.z=h/2+oldNodes.at(0).z;
+				node3.y=oldNodes.at(3).y;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/3+oldNodes.at(0).x;
+				node4.z=h/2+oldNodes.at(0).z;
+				node4.y=oldNodes.at(3).y;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=w/3+oldNodes.at(0).x;
+				node5.z=oldNodes.at(4).z;
+				node5.y=oldNodes.at(0).y;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w/3*2+oldNodes.at(0).x;
+				node6.z=oldNodes.at(4).z;
+				node6.y=oldNodes.at(0).y;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w/3*2+oldNodes.at(0).x;
+				node7.z=oldNodes.at(7).z;
+				node7.y=oldNodes.at(3).y;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=w/3+oldNodes.at(0).x;
+				node8.z=oldNodes.at(7).z;
+				node8.y=oldNodes.at(3).y;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(4)=node1.nNum;
+				botNodes.at(5)=node2.nNum;
+				botNodes.at(6)=node3.nNum;
+				botNodes.at(7)=node4.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=node2.nNum;
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				rightFlankNodes.at(2)=oldNodeNumbers.at(2);
+				rightFlankNodes.at(3)=node3.nNum;
+				rightFlankNodes.at(4)=node6.nNum;
+				rightFlankNodes.at(5)=oldNodeNumbers.at(5);
+				rightFlankNodes.at(6)=oldNodeNumbers.at(6);
+				rightFlankNodes.at(7)=node7.nNum;
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=oldNodeNumbers.at(0);
+				leftFlankNodes.at(1)=node1.nNum;
+				leftFlankNodes.at(2)=node4.nNum;
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				leftFlankNodes.at(4)=oldNodeNumbers.at(4);
+				leftFlankNodes.at(5)=node5.nNum;
+				leftFlankNodes.at(6)=node8.nNum;
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
 			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double l=oldNodes.at(3).y-oldNodes.at(0).y;
+			else if(type==3)
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double l=oldNodes.at(3).y-oldNodes.at(0).y;
 
-			node1.nNum=nodes.size();
-			node1.x=oldNodes.at(0).x;
-			node1.y=l/3+oldNodes.at(0).y;
-			node1.z=h/2+oldNodes.at(0).z;
-			
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w+oldNodes.at(0).x;
-			node2.y=l/3+oldNodes.at(0).y;
-			node2.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w+oldNodes.at(0).x;
-			node3.y=l/3*2+oldNodes.at(0).y;
-			node3.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=oldNodes.at(0).x;
-			node4.y=l/3*2+oldNodes.at(0).y;
-			node4.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=oldNodes.at(0).x;
-			node5.y=l/3+oldNodes.at(0).y;
-			node5.z=h+oldNodes.at(0).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w+oldNodes.at(0).x;
-			node6.y=l/3+oldNodes.at(0).y;
-			node6.z=h+oldNodes.at(0).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w+oldNodes.at(0).x;
-			node7.y=l/3*2+oldNodes.at(0).y;
-			node7.z=h+oldNodes.at(0).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=oldNodes.at(0).x;
-			node8.y=l/3*2+oldNodes.at(0).y;
-			node8.z=h+oldNodes.at(0).z;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(4)=node1.nNum;
-			botNodes.at(5)=node2.nNum;
-			botNodes.at(6)=node3.nNum;
-			botNodes.at(7)=node4.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=oldNodeNumbers.at(1);
-			rightFlankNodes.at(2)=node2.nNum;
-			rightFlankNodes.at(3)=node1.nNum;
-			rightFlankNodes.at(4)=oldNodeNumbers.at(4);
-			rightFlankNodes.at(5)=oldNodeNumbers.at(5);
-			rightFlankNodes.at(6)=node6.nNum;
-			rightFlankNodes.at(7)=node5.nNum;
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node4.nNum;
-			leftFlankNodes.at(1)=node3.nNum;
-			leftFlankNodes.at(2)=oldNodeNumbers.at(2);
-			leftFlankNodes.at(3)=oldNodeNumbers.at(3);
-			leftFlankNodes.at(4)=node8.nNum;
-			leftFlankNodes.at(5)=node7.nNum;
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-		}
-		else if(type==4) //corner element
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				node1.nNum=nodes.size();
+				node1.x=oldNodes.at(0).x;
+				node1.y=l/3+oldNodes.at(0).y;
+				node1.z=h/2+oldNodes.at(0).z;
+				
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w+oldNodes.at(0).x;
+				node2.y=l/3+oldNodes.at(0).y;
+				node2.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w+oldNodes.at(0).x;
+				node3.y=l/3*2+oldNodes.at(0).y;
+				node3.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=oldNodes.at(0).x;
+				node4.y=l/3*2+oldNodes.at(0).y;
+				node4.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=oldNodes.at(0).x;
+				node5.y=l/3+oldNodes.at(0).y;
+				node5.z=h+oldNodes.at(0).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w+oldNodes.at(0).x;
+				node6.y=l/3+oldNodes.at(0).y;
+				node6.z=h+oldNodes.at(0).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w+oldNodes.at(0).x;
+				node7.y=l/3*2+oldNodes.at(0).y;
+				node7.z=h+oldNodes.at(0).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=oldNodes.at(0).x;
+				node8.y=l/3*2+oldNodes.at(0).y;
+				node8.z=h+oldNodes.at(0).z;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(4)=node1.nNum;
+				botNodes.at(5)=node2.nNum;
+				botNodes.at(6)=node3.nNum;
+				botNodes.at(7)=node4.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				rightFlankNodes.at(2)=node2.nNum;
+				rightFlankNodes.at(3)=node1.nNum;
+				rightFlankNodes.at(4)=oldNodeNumbers.at(4);
+				rightFlankNodes.at(5)=oldNodeNumbers.at(5);
+				rightFlankNodes.at(6)=node6.nNum;
+				rightFlankNodes.at(7)=node5.nNum;
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node4.nNum;
+				leftFlankNodes.at(1)=node3.nNum;
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				leftFlankNodes.at(4)=node8.nNum;
+				leftFlankNodes.at(5)=node7.nNum;
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
 			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double l=oldNodes.at(3).y-oldNodes.at(0).y;
+			else if(type==4) //corner element
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double l=oldNodes.at(3).y-oldNodes.at(0).y;
 
-			node1.nNum=nodes.size();
-			node1.x=w/2+oldNodes.at(0).x;
-			node1.y=l/3+oldNodes.at(0).y;
-			node1.z=h/2+oldNodes.at(0).z;
-			
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w+oldNodes.at(0).x;
-			node2.y=l/3+oldNodes.at(0).y;
-			node2.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w+oldNodes.at(0).x;
-			node3.y=l/3*2+oldNodes.at(0).y;
-			node3.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=w/2+oldNodes.at(0).x;
-			node4.y=l/3*2+oldNodes.at(0).y;
-			node4.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=w/2+oldNodes.at(0).x;
-			node5.y=l/3+oldNodes.at(0).y;
-			node5.z=h+oldNodes.at(0).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w+oldNodes.at(0).x;
-			node6.y=l/3+oldNodes.at(0).y;
-			node6.z=h+oldNodes.at(0).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w+oldNodes.at(0).x;
-			node7.y=l/3*2+oldNodes.at(0).y;
-			node7.z=h+oldNodes.at(0).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=w/2+oldNodes.at(0).x;
-			node8.y=l/3*2+oldNodes.at(0).y;
-			node8.z=h+oldNodes.at(0).z;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(4)=node1.nNum;
-			botNodes.at(5)=node2.nNum;
-			botNodes.at(6)=node3.nNum;
-			botNodes.at(7)=node4.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=oldNodeNumbers.at(1);
-			rightFlankNodes.at(2)=node2.nNum;
-			rightFlankNodes.at(3)=node1.nNum;
-			rightFlankNodes.at(4)=oldNodeNumbers.at(4);
-			rightFlankNodes.at(5)=oldNodeNumbers.at(5);
-			rightFlankNodes.at(6)=node6.nNum;
-			rightFlankNodes.at(7)=node5.nNum;
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node4.nNum;
-			leftFlankNodes.at(1)=node3.nNum;
-			leftFlankNodes.at(2)=oldNodeNumbers.at(2);
-			leftFlankNodes.at(3)=oldNodeNumbers.at(3);
-			leftFlankNodes.at(4)=node8.nNum;
-			leftFlankNodes.at(5)=node7.nNum;
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-			
-			element wall;
-			wall.setNumber(currentNumberofElements+4);
-			vector<int> wallNodes;
-			wallNodes.resize(8,-1);
-			wallNodes.at(0)=oldNodeNumbers.at(0);
-			wallNodes.at(1)=node1.nNum;
-			wallNodes.at(2)=node4.nNum;
-			wallNodes.at(3)=oldNodeNumbers.at(3);
-			wallNodes.at(4)=oldNodeNumbers.at(4);
-			wallNodes.at(5)=node5.nNum;
-			wallNodes.at(6)=node8.nNum;
-			wallNodes.at(7)=oldNodeNumbers.at(7);
-			wall.setNodes(wallNodes);
-			elements.addElement(wall);
-		}
-		else if(type==5)
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				node1.nNum=nodes.size();
+				node1.x=w/2+oldNodes.at(0).x;
+				node1.y=l/3+oldNodes.at(0).y;
+				node1.z=h/2+oldNodes.at(0).z;
+				
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w+oldNodes.at(0).x;
+				node2.y=l/3+oldNodes.at(0).y;
+				node2.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w+oldNodes.at(0).x;
+				node3.y=l/3*2+oldNodes.at(0).y;
+				node3.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/2+oldNodes.at(0).x;
+				node4.y=l/3*2+oldNodes.at(0).y;
+				node4.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=w/2+oldNodes.at(0).x;
+				node5.y=l/3+oldNodes.at(0).y;
+				node5.z=h+oldNodes.at(0).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w+oldNodes.at(0).x;
+				node6.y=l/3+oldNodes.at(0).y;
+				node6.z=h+oldNodes.at(0).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w+oldNodes.at(0).x;
+				node7.y=l/3*2+oldNodes.at(0).y;
+				node7.z=h+oldNodes.at(0).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=w/2+oldNodes.at(0).x;
+				node8.y=l/3*2+oldNodes.at(0).y;
+				node8.z=h+oldNodes.at(0).z;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(4)=node1.nNum;
+				botNodes.at(5)=node2.nNum;
+				botNodes.at(6)=node3.nNum;
+				botNodes.at(7)=node4.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				rightFlankNodes.at(2)=node2.nNum;
+				rightFlankNodes.at(3)=node1.nNum;
+				rightFlankNodes.at(4)=oldNodeNumbers.at(4);
+				rightFlankNodes.at(5)=oldNodeNumbers.at(5);
+				rightFlankNodes.at(6)=node6.nNum;
+				rightFlankNodes.at(7)=node5.nNum;
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node4.nNum;
+				leftFlankNodes.at(1)=node3.nNum;
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				leftFlankNodes.at(4)=node8.nNum;
+				leftFlankNodes.at(5)=node7.nNum;
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
+				
+				element wall;
+				wall.setNumber(currentNumberofElements+4);
+				vector<int> wallNodes;
+				wallNodes.resize(8,-1);
+				wallNodes.at(0)=oldNodeNumbers.at(0);
+				wallNodes.at(1)=node1.nNum;
+				wallNodes.at(2)=node4.nNum;
+				wallNodes.at(3)=oldNodeNumbers.at(3);
+				wallNodes.at(4)=oldNodeNumbers.at(4);
+				wallNodes.at(5)=node5.nNum;
+				wallNodes.at(6)=node8.nNum;
+				wallNodes.at(7)=oldNodeNumbers.at(7);
+				wall.setNodes(wallNodes);
+				elements.addElement(wall);
 			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double l=oldNodes.at(3).y-oldNodes.at(0).y;
+			else if(type==5)
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double l=oldNodes.at(3).y-oldNodes.at(0).y;
 
-			node1.nNum=nodes.size();
-			node1.x=oldNodes.at(0).x;
-			node1.y=oldNodes.at(0).y;
-			node1.z=h/3+oldNodes.at(0).z;
-			
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w+oldNodes.at(0).x;
-			node2.y=oldNodes.at(0).y;
-			node2.z=h/3+oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w+oldNodes.at(0).x;
-			node3.y=l/2+oldNodes.at(0).y;
-			node3.z=h/3+oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=oldNodes.at(0).x;
-			node4.y=l/2+oldNodes.at(0).y;
-			node4.z=h/3+oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=oldNodes.at(0).x;
-			node5.y=oldNodes.at(0).y;
-			node5.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w+oldNodes.at(0).x;
-			node6.y=oldNodes.at(0).y;
-			node6.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w+oldNodes.at(0).x;
-			node7.y=l/2+oldNodes.at(0).y;
-			node7.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=oldNodes.at(0).x;
-			node8.y=l/2+oldNodes.at(0).y;
-			node8.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(0)=node4.nNum;
-			botNodes.at(1)=node3.nNum;
-			botNodes.at(4)=node8.nNum;
-			botNodes.at(5)=node7.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=oldNodeNumbers.at(1);
-			rightFlankNodes.at(2)=oldNodeNumbers.at(2);
-			rightFlankNodes.at(3)=oldNodeNumbers.at(3);
-			rightFlankNodes.at(4)=node1.nNum;
-			rightFlankNodes.at(5)=node2.nNum;
-			rightFlankNodes.at(6)=node3.nNum;
-			rightFlankNodes.at(7)=node4.nNum;
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node5.nNum;
-			leftFlankNodes.at(1)=node6.nNum;
-			leftFlankNodes.at(2)=node7.nNum;
-			leftFlankNodes.at(3)=node8.nNum;
-			leftFlankNodes.at(4)=oldNodeNumbers.at(4);
-			leftFlankNodes.at(5)=oldNodeNumbers.at(5);
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-		}
-		else if(type==6)
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				node1.nNum=nodes.size();
+				node1.x=oldNodes.at(0).x;
+				node1.y=oldNodes.at(0).y;
+				node1.z=h/3+oldNodes.at(0).z;
+				
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w+oldNodes.at(0).x;
+				node2.y=oldNodes.at(0).y;
+				node2.z=h/3+oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w+oldNodes.at(0).x;
+				node3.y=l/2+oldNodes.at(0).y;
+				node3.z=h/3+oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=oldNodes.at(0).x;
+				node4.y=l/2+oldNodes.at(0).y;
+				node4.z=h/3+oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=oldNodes.at(0).x;
+				node5.y=oldNodes.at(0).y;
+				node5.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w+oldNodes.at(0).x;
+				node6.y=oldNodes.at(0).y;
+				node6.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w+oldNodes.at(0).x;
+				node7.y=l/2+oldNodes.at(0).y;
+				node7.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=oldNodes.at(0).x;
+				node8.y=l/2+oldNodes.at(0).y;
+				node8.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(0)=node4.nNum;
+				botNodes.at(1)=node3.nNum;
+				botNodes.at(4)=node8.nNum;
+				botNodes.at(5)=node7.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				rightFlankNodes.at(2)=oldNodeNumbers.at(2);
+				rightFlankNodes.at(3)=oldNodeNumbers.at(3);
+				rightFlankNodes.at(4)=node1.nNum;
+				rightFlankNodes.at(5)=node2.nNum;
+				rightFlankNodes.at(6)=node3.nNum;
+				rightFlankNodes.at(7)=node4.nNum;
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node5.nNum;
+				leftFlankNodes.at(1)=node6.nNum;
+				leftFlankNodes.at(2)=node7.nNum;
+				leftFlankNodes.at(3)=node8.nNum;
+				leftFlankNodes.at(4)=oldNodeNumbers.at(4);
+				leftFlankNodes.at(5)=oldNodeNumbers.at(5);
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
 			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double l=oldNodes.at(3).y-oldNodes.at(0).y;
+			else if(type==6)
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double l=oldNodes.at(3).y-oldNodes.at(0).y;
 
-			node1.nNum=nodes.size();
-			node1.x=w/3+oldNodes.at(0).x;
-			node1.y=oldNodes.at(0).y;
-			node1.z=h/3+oldNodes.at(0).z;
-			
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w/3*2+oldNodes.at(0).x;
-			node2.y=oldNodes.at(0).y;
-			node2.z=oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w/3*2+oldNodes.at(0).x;
-			node3.y=l/2+oldNodes.at(0).y;
-			node3.z=oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=w/3+oldNodes.at(0).x;
-			node4.y=l/2+oldNodes.at(0).y;
-			node4.z=oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=w/3+oldNodes.at(0).x;
-			node5.y=oldNodes.at(0).y;
-			node5.z=h+oldNodes.at(0).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w/3*2+oldNodes.at(0).x;
-			node6.y=oldNodes.at(0).y;
-			node6.z=h+oldNodes.at(0).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w/3*2+oldNodes.at(0).x;
-			node7.y=l/2+oldNodes.at(0).y;
-			node7.z=h+oldNodes.at(0).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=w/3+oldNodes.at(0).x;
-			node8.y=l/2+oldNodes.at(0).y;
-			node8.z=h+oldNodes.at(0).z;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(0)=node4.nNum;
-			botNodes.at(1)=node3.nNum;
-			botNodes.at(4)=node8.nNum;
-			botNodes.at(5)=node7.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=node1.nNum;
-			rightFlankNodes.at(2)=node4.nNum;
-			rightFlankNodes.at(3)=oldNodeNumbers.at(3);
-			rightFlankNodes.at(4)=oldNodeNumbers.at(4);
-			rightFlankNodes.at(5)=node5.nNum;
-			rightFlankNodes.at(6)=node8.nNum;
-			rightFlankNodes.at(7)=oldNodeNumbers.at(7);
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node2.nNum;
-			leftFlankNodes.at(1)=oldNodeNumbers.at(1);
-			leftFlankNodes.at(2)=oldNodeNumbers.at(2);
-			leftFlankNodes.at(3)=node3.nNum;
-			leftFlankNodes.at(4)=node6.nNum;
-			leftFlankNodes.at(5)=oldNodeNumbers.at(5);
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=node7.nNum;
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-		}
-		else if(type==7) //corner element
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				node1.nNum=nodes.size();
+				node1.x=w/3+oldNodes.at(0).x;
+				node1.y=oldNodes.at(0).y;
+				node1.z=h/3+oldNodes.at(0).z;
+				
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w/3*2+oldNodes.at(0).x;
+				node2.y=oldNodes.at(0).y;
+				node2.z=oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w/3*2+oldNodes.at(0).x;
+				node3.y=l/2+oldNodes.at(0).y;
+				node3.z=oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/3+oldNodes.at(0).x;
+				node4.y=l/2+oldNodes.at(0).y;
+				node4.z=oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=w/3+oldNodes.at(0).x;
+				node5.y=oldNodes.at(0).y;
+				node5.z=h+oldNodes.at(0).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w/3*2+oldNodes.at(0).x;
+				node6.y=oldNodes.at(0).y;
+				node6.z=h+oldNodes.at(0).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w/3*2+oldNodes.at(0).x;
+				node7.y=l/2+oldNodes.at(0).y;
+				node7.z=h+oldNodes.at(0).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=w/3+oldNodes.at(0).x;
+				node8.y=l/2+oldNodes.at(0).y;
+				node8.z=h+oldNodes.at(0).z;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(0)=node4.nNum;
+				botNodes.at(1)=node3.nNum;
+				botNodes.at(4)=node8.nNum;
+				botNodes.at(5)=node7.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=node1.nNum;
+				rightFlankNodes.at(2)=node4.nNum;
+				rightFlankNodes.at(3)=oldNodeNumbers.at(3);
+				rightFlankNodes.at(4)=oldNodeNumbers.at(4);
+				rightFlankNodes.at(5)=node5.nNum;
+				rightFlankNodes.at(6)=node8.nNum;
+				rightFlankNodes.at(7)=oldNodeNumbers.at(7);
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node2.nNum;
+				leftFlankNodes.at(1)=oldNodeNumbers.at(1);
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=node3.nNum;
+				leftFlankNodes.at(4)=node6.nNum;
+				leftFlankNodes.at(5)=oldNodeNumbers.at(5);
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=node7.nNum;
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
 			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double l=oldNodes.at(3).y-oldNodes.at(0).y;
+			else if(type==7) //corner element
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double l=oldNodes.at(3).y-oldNodes.at(0).y;
 
-			node1.nNum=nodes.size();
-			node1.x=w/2+oldNodes.at(0).x;
-			node1.y=oldNodes.at(0).y;
-			node1.z=h/3+oldNodes.at(0).z;
-			
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w+oldNodes.at(0).x;
-			node2.y=oldNodes.at(0).y;
-			node2.z=h/3+oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w+oldNodes.at(0).x;
-			node3.y=l/2+oldNodes.at(0).y;
-			node3.z=h/3+oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=w/2+oldNodes.at(0).x;
-			node4.y=l/2+oldNodes.at(0).y;
-			node4.z=h/3+oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=w/2+oldNodes.at(0).x;
-			node5.y=oldNodes.at(0).y;
-			node5.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w+oldNodes.at(0).x;
-			node6.y=oldNodes.at(0).y;
-			node6.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w+oldNodes.at(0).x;
-			node7.y=l/2+oldNodes.at(0).y;
-			node7.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=w/2+oldNodes.at(0).x;
-			node8.y=l/2+oldNodes.at(0).y;
-			node8.z=h/3*2+oldNodes.at(0).z;
-			nodes.addNode(node8);	
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(4)=node1.nNum;
-			botNodes.at(5)=node2.nNum;
-			botNodes.at(6)=node3.nNum;
-			botNodes.at(7)=node4.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=node1.nNum;
-			rightFlankNodes.at(2)=node4.nNum;
-			rightFlankNodes.at(3)=oldNodeNumbers.at(3);
-			rightFlankNodes.at(4)=oldNodeNumbers.at(4);
-			rightFlankNodes.at(5)=node5.nNum;
-			rightFlankNodes.at(6)=node8.nNum;
-			rightFlankNodes.at(7)=oldNodeNumbers.at(7);
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node4.nNum;
-			leftFlankNodes.at(1)=node3.nNum;
-			leftFlankNodes.at(2)=oldNodeNumbers.at(2);
-			leftFlankNodes.at(3)=oldNodeNumbers.at(3);
-			leftFlankNodes.at(4)=node8.nNum;
-			leftFlankNodes.at(5)=node7.nNum;
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-			
-			element wall;
-			wall.setNumber(currentNumberofElements+4);
-			vector<int> wallNodes;
-			wallNodes.resize(8,-1);
-			wallNodes.at(0)=node5.nNum;
-			wallNodes.at(1)=node6.nNum;
-			wallNodes.at(2)=node7.nNum;
-			wallNodes.at(3)=node8.nNum;
-			wallNodes.at(4)=oldNodeNumbers.at(4);
-			wallNodes.at(5)=oldNodeNumbers.at(5);
-			wallNodes.at(6)=oldNodeNumbers.at(6);
-			wallNodes.at(7)=oldNodeNumbers.at(7);
-			wall.setNodes(wallNodes);
-			elements.addElement(wall);
-		}
-		else if(type==8) //corner element NOT FINISHED
-		{
-			//printf("Trying to transmogrify element %d\n",eToRefine);
-			printf("Transmog type VIII is not finished!\n");
-			element oldElement;
-			oldElement=elements.getElement(eToRefine);
-			//printf("In method refine element:\n");
-			//oldElement.printNodes();
-					
-			vector<node> oldNodes; // nodes in the element to be refined
-			vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
-			
-			oldNodeNumbers=oldElement.getNodes();
-	
-			for(int i=0;i<8;i++)
-			{	
-				node tempNode;			
-				int tempNumber=oldNodeNumbers.at(i);
-				tempNode=nodes.getNode(tempNumber);
-				oldNodes.push_back(tempNode);
+				node1.nNum=nodes.size();
+				node1.x=w/2+oldNodes.at(0).x;
+				node1.y=oldNodes.at(0).y;
+				node1.z=h/3+oldNodes.at(0).z;
+				
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w+oldNodes.at(0).x;
+				node2.y=oldNodes.at(0).y;
+				node2.z=h/3+oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w+oldNodes.at(0).x;
+				node3.y=l/2+oldNodes.at(0).y;
+				node3.z=h/3+oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/2+oldNodes.at(0).x;
+				node4.y=l/2+oldNodes.at(0).y;
+				node4.z=h/3+oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=w/2+oldNodes.at(0).x;
+				node5.y=oldNodes.at(0).y;
+				node5.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w+oldNodes.at(0).x;
+				node6.y=oldNodes.at(0).y;
+				node6.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w+oldNodes.at(0).x;
+				node7.y=l/2+oldNodes.at(0).y;
+				node7.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=w/2+oldNodes.at(0).x;
+				node8.y=l/2+oldNodes.at(0).y;
+				node8.z=h/3*2+oldNodes.at(0).z;
+				nodes.addNode(node8);	
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(4)=node1.nNum;
+				botNodes.at(5)=node2.nNum;
+				botNodes.at(6)=node3.nNum;
+				botNodes.at(7)=node4.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=node1.nNum;
+				rightFlankNodes.at(2)=node4.nNum;
+				rightFlankNodes.at(3)=oldNodeNumbers.at(3);
+				rightFlankNodes.at(4)=oldNodeNumbers.at(4);
+				rightFlankNodes.at(5)=node5.nNum;
+				rightFlankNodes.at(6)=node8.nNum;
+				rightFlankNodes.at(7)=oldNodeNumbers.at(7);
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node4.nNum;
+				leftFlankNodes.at(1)=node3.nNum;
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				leftFlankNodes.at(4)=node8.nNum;
+				leftFlankNodes.at(5)=node7.nNum;
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
+				
+				element wall;
+				wall.setNumber(currentNumberofElements+4);
+				vector<int> wallNodes;
+				wallNodes.resize(8,-1);
+				wallNodes.at(0)=node5.nNum;
+				wallNodes.at(1)=node6.nNum;
+				wallNodes.at(2)=node7.nNum;
+				wallNodes.at(3)=node8.nNum;
+				wallNodes.at(4)=oldNodeNumbers.at(4);
+				wallNodes.at(5)=oldNodeNumbers.at(5);
+				wallNodes.at(6)=oldNodeNumbers.at(6);
+				wallNodes.at(7)=oldNodeNumbers.at(7);
+				wall.setNodes(wallNodes);
+				elements.addElement(wall);
 			}
-			
-			//create new nodes
-			node node1;
-			double h=oldNodes.at(4).z-oldNodes.at(0).z;
-			double w=oldNodes.at(1).x-oldNodes.at(0).x;
-			double l=oldNodes.at(3).y-oldNodes.at(0).y;
+			else if(type==8) //corner element NOT FINISHED
+			{
+				//printf("Trying to transmogrify element %d\n",eToRefine);
+				printf("Transmog type VIII is not finished!\n");
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+		
+				for(int i=0;i<8;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(4).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double l=oldNodes.at(3).y-oldNodes.at(0).y;
 
-			node1.nNum=nodes.size();
-			node1.x=w/3+oldNodes.at(0).x;
-			node1.y=oldNodes.at(0).y;
-			node1.z=h/2+oldNodes.at(0).z;
-			
-			nodes.addNode(node1);
-			
-			node node2;
-			node2.nNum=nodes.size();
-			node2.x=w/3*2+oldNodes.at(0).x;
-			node2.y=oldNodes.at(0).y;
-			node2.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node2);
-			
-			node node3;
-			node3.nNum=nodes.size();
-			node3.x=w/3+oldNodes.at(0).x;
-			node3.y=l/3+oldNodes.at(0).y;
-			node3.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node3);
-	
-			node node4;
-			node4.nNum=nodes.size();
-			node4.x=w/3+oldNodes.at(0).x;
-			node4.y=l/3*2+oldNodes.at(0).y;
-			node4.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node4);		
-			
-			node node5;
-			node5.nNum=nodes.size();
-			node5.x=w/3+oldNodes.at(0).x;
-			node5.y=oldNodes.at(0).y;
-			node5.z=h+oldNodes.at(0).z;
-			nodes.addNode(node5);
-			
-			node node6;
-			node6.nNum=nodes.size();
-			node6.x=w/3*2+oldNodes.at(0).x;
-			node6.y=oldNodes.at(0).y;
-			node6.z=h+oldNodes.at(0).z;
-			nodes.addNode(node6);
-			
-			node node7;
-			node7.nNum=nodes.size();
-			node7.x=w/3*2+oldNodes.at(0).x;
-			node7.y=l/3+oldNodes.at(0).y;
-			node7.z=h+oldNodes.at(0).z;
-			nodes.addNode(node7);
-	
-			node node8;
-			node8.nNum=nodes.size();
-			node8.x=w/3+oldNodes.at(0).x;
-			node8.y=l/3*2+oldNodes.at(0).y;
-			node8.z=h+oldNodes.at(0).z;
-			nodes.addNode(node8);	
-			
-			node node9;
-			node9.nNum=nodes.size();
-			node9.x=w+oldNodes.at(0).x;
-			node9.y=l/3+oldNodes.at(0).y;
-			node9.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node9);
-			
-			node node10;
-			node10.nNum=nodes.size();
-			node10.x=w+oldNodes.at(0).x;
-			node10.y=l/3*2+oldNodes.at(0).y;
-			node10.z=h/2+oldNodes.at(0).z;
-			nodes.addNode(node10);
-			
-			node node11;
-			node11.nNum=nodes.size();
-			node11.x=w+oldNodes.at(0).x;
-			node11.y=l/3+oldNodes.at(0).y;
-			node11.z=h+oldNodes.at(0).z;
-			nodes.addNode(node11);
-			
-			node node12;
-			node12.nNum=nodes.size();
-			node12.x=w+oldNodes.at(0).x;
-			node12.y=l/3*2+oldNodes.at(0).y;
-			node12.z=h+oldNodes.at(0).z;
-			nodes.addNode(node12);
-			
-			//make new elements
-			element bot;
-			bot.setNumber(eToRefine);
-			vector<int> botNodes;
-			botNodes=oldNodeNumbers;
-			botNodes.at(4)=node1.nNum;
-			botNodes.at(5)=node2.nNum;
-			botNodes.at(6)=node3.nNum;
-			botNodes.at(7)=node4.nNum;
-			bot.setNodes(botNodes);
-			elements.replaceElement(bot);
-			
-			int currentNumberofElements=elements.getHighestElementNumber();
-			element rightFlank;
-			rightFlank.setNumber(currentNumberofElements+1);
-			vector<int> rightFlankNodes;
-			rightFlankNodes.resize(8,-1);
-			rightFlankNodes.at(0)=oldNodeNumbers.at(0);
-			rightFlankNodes.at(1)=node1.nNum;
-			rightFlankNodes.at(2)=node4.nNum;
-			rightFlankNodes.at(3)=oldNodeNumbers.at(3);
-			rightFlankNodes.at(4)=oldNodeNumbers.at(4);
-			rightFlankNodes.at(5)=node5.nNum;
-			rightFlankNodes.at(6)=node8.nNum;
-			rightFlankNodes.at(7)=oldNodeNumbers.at(7);
-			rightFlank.setNodes(rightFlankNodes);
-			elements.addElement(rightFlank);
-			
-			element leftFlank;
-			leftFlank.setNumber(currentNumberofElements+2);
-			vector<int> leftFlankNodes;
-			leftFlankNodes.resize(8,-1);
-			leftFlankNodes.at(0)=node4.nNum;
-			leftFlankNodes.at(1)=node3.nNum;
-			leftFlankNodes.at(2)=oldNodeNumbers.at(2);
-			leftFlankNodes.at(3)=oldNodeNumbers.at(3);
-			leftFlankNodes.at(4)=node8.nNum;
-			leftFlankNodes.at(5)=node7.nNum;
-			leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-			leftFlankNodes.at(7)=oldNodeNumbers.at(7);
-			leftFlank.setNodes(leftFlankNodes);
-			elements.addElement(leftFlank);
-			
-			element middle;
-			middle.setNumber(currentNumberofElements+3);
-			vector<int> middleNodes;
-			middleNodes.resize(8,-1);
-			middleNodes.at(0)=node1.nNum;
-			middleNodes.at(1)=node2.nNum;
-			middleNodes.at(2)=node3.nNum;
-			middleNodes.at(3)=node4.nNum;
-			middleNodes.at(4)=node5.nNum;
-			middleNodes.at(5)=node6.nNum;
-			middleNodes.at(6)=node7.nNum;
-			middleNodes.at(7)=node8.nNum;
-			middle.setNodes(middleNodes);
-			elements.addElement(middle);
-			
-			element wall;
-			wall.setNumber(currentNumberofElements+4);
-			vector<int> wallNodes;
-			wallNodes.resize(8,-1);
-			wallNodes.at(0)=node5.nNum;
-			wallNodes.at(1)=node6.nNum;
-			wallNodes.at(2)=node7.nNum;
-			wallNodes.at(3)=node8.nNum;
-			wallNodes.at(4)=oldNodeNumbers.at(4);
-			wallNodes.at(5)=oldNodeNumbers.at(5);
-			wallNodes.at(6)=oldNodeNumbers.at(6);
-			wallNodes.at(7)=oldNodeNumbers.at(7);
-			wall.setNodes(wallNodes);
-			elements.addElement(wall);
+				node1.nNum=nodes.size();
+				node1.x=w/3+oldNodes.at(0).x;
+				node1.y=oldNodes.at(0).y;
+				node1.z=h/2+oldNodes.at(0).z;
+				
+				nodes.addNode(node1);
+				
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w/3*2+oldNodes.at(0).x;
+				node2.y=oldNodes.at(0).y;
+				node2.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w/3+oldNodes.at(0).x;
+				node3.y=l/3+oldNodes.at(0).y;
+				node3.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/3+oldNodes.at(0).x;
+				node4.y=l/3*2+oldNodes.at(0).y;
+				node4.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node4);		
+				
+				node node5;
+				node5.nNum=nodes.size();
+				node5.x=w/3+oldNodes.at(0).x;
+				node5.y=oldNodes.at(0).y;
+				node5.z=h+oldNodes.at(0).z;
+				nodes.addNode(node5);
+				
+				node node6;
+				node6.nNum=nodes.size();
+				node6.x=w/3*2+oldNodes.at(0).x;
+				node6.y=oldNodes.at(0).y;
+				node6.z=h+oldNodes.at(0).z;
+				nodes.addNode(node6);
+				
+				node node7;
+				node7.nNum=nodes.size();
+				node7.x=w/3*2+oldNodes.at(0).x;
+				node7.y=l/3+oldNodes.at(0).y;
+				node7.z=h+oldNodes.at(0).z;
+				nodes.addNode(node7);
+		
+				node node8;
+				node8.nNum=nodes.size();
+				node8.x=w/3+oldNodes.at(0).x;
+				node8.y=l/3*2+oldNodes.at(0).y;
+				node8.z=h+oldNodes.at(0).z;
+				nodes.addNode(node8);	
+				
+				node node9;
+				node9.nNum=nodes.size();
+				node9.x=w+oldNodes.at(0).x;
+				node9.y=l/3+oldNodes.at(0).y;
+				node9.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node9);
+				
+				node node10;
+				node10.nNum=nodes.size();
+				node10.x=w+oldNodes.at(0).x;
+				node10.y=l/3*2+oldNodes.at(0).y;
+				node10.z=h/2+oldNodes.at(0).z;
+				nodes.addNode(node10);
+				
+				node node11;
+				node11.nNum=nodes.size();
+				node11.x=w+oldNodes.at(0).x;
+				node11.y=l/3+oldNodes.at(0).y;
+				node11.z=h+oldNodes.at(0).z;
+				nodes.addNode(node11);
+				
+				node node12;
+				node12.nNum=nodes.size();
+				node12.x=w+oldNodes.at(0).x;
+				node12.y=l/3*2+oldNodes.at(0).y;
+				node12.z=h+oldNodes.at(0).z;
+				nodes.addNode(node12);
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(4)=node1.nNum;
+				botNodes.at(5)=node2.nNum;
+				botNodes.at(6)=node3.nNum;
+				botNodes.at(7)=node4.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=node1.nNum;
+				rightFlankNodes.at(2)=node4.nNum;
+				rightFlankNodes.at(3)=oldNodeNumbers.at(3);
+				rightFlankNodes.at(4)=oldNodeNumbers.at(4);
+				rightFlankNodes.at(5)=node5.nNum;
+				rightFlankNodes.at(6)=node8.nNum;
+				rightFlankNodes.at(7)=oldNodeNumbers.at(7);
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node4.nNum;
+				leftFlankNodes.at(1)=node3.nNum;
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				leftFlankNodes.at(4)=node8.nNum;
+				leftFlankNodes.at(5)=node7.nNum;
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
+				
+				element wall;
+				wall.setNumber(currentNumberofElements+4);
+				vector<int> wallNodes;
+				wallNodes.resize(8,-1);
+				wallNodes.at(0)=node5.nNum;
+				wallNodes.at(1)=node6.nNum;
+				wallNodes.at(2)=node7.nNum;
+				wallNodes.at(3)=node8.nNum;
+				wallNodes.at(4)=oldNodeNumbers.at(4);
+				wallNodes.at(5)=oldNodeNumbers.at(5);
+				wallNodes.at(6)=oldNodeNumbers.at(6);
+				wallNodes.at(7)=oldNodeNumbers.at(7);
+				wall.setNodes(wallNodes);
+				elements.addElement(wall);
+			}
+			else
+				printf("Type of transmogrification unknown. (Type=%d)\n",type);
 		}
 		else
-			printf("Type of transmogrification unknown. (Type=%d)\n",type);
+		{
+			if(type==1)
+			{
+				printf("Trying to transmogrify element %d\n",eToRefine);
+				element oldElement;
+				oldElement=elements.getElement(eToRefine);
+				//printf("In method refine element:\n");
+				//oldElement.printNodes();
+						
+				vector<node> oldNodes; // nodes in the element to be refined
+				vector<int> oldNodeNumbers; // list of node numbers in the element to be refined
+				
+				oldNodeNumbers=oldElement.getNodes();
+
+				
+				for(int i=0;i<oldElement.nodesPerElement;i++)
+				{	
+					node tempNode;			
+					int tempNumber=oldNodeNumbers.at(i);
+					tempNode=nodes.getNode(tempNumber);
+					oldNodes.push_back(tempNode);
+				}
+				
+				//create new nodes
+				node node1;
+				double h=oldNodes.at(3).z-oldNodes.at(0).z;
+				double w=oldNodes.at(1).x-oldNodes.at(0).x;
+				double offset=0;
+				node1.nNum=nodes.size();
+				node1.x=w/2+oldNodes.at(0).x+offset;
+				node1.z=h/3+oldNodes.at(0).z;
+				node1.y=oldNodes.at(0).y;
+				nodes.addNode(node1);
+
+				node node2;
+				node2.nNum=nodes.size();
+				node2.x=w+oldNodes.at(0).x+offset;
+				node2.z=h/3+oldNodes.at(0).z;
+				node2.y=oldNodes.at(0).y;
+				nodes.addNode(node2);
+				
+				node node3;
+				node3.nNum=nodes.size();
+				node3.x=w+oldNodes.at(0).x+offset;
+				node3.z=h/3+oldNodes.at(0).z;
+				node3.y=oldNodes.at(3).y;
+				nodes.addNode(node3);
+		
+				node node4;
+				node4.nNum=nodes.size();
+				node4.x=w/2+oldNodes.at(0).x+offset;
+				node4.z=h/3+oldNodes.at(0).z;
+				node4.y=oldNodes.at(3).y;
+				nodes.addNode(node4);		
+				
+				
+				//make new elements
+				element bot;
+				bot.setNumber(eToRefine);
+				vector<int> botNodes;
+				botNodes=oldNodeNumbers;
+				botNodes.at(1)=node1.nNum;
+				botNodes.at(2)=node4.nNum;
+				bot.setNodes(botNodes);
+				elements.replaceElement(bot);
+				
+				int currentNumberofElements=elements.getHighestElementNumber();
+				element rightFlank;
+				rightFlank.setNumber(currentNumberofElements+1);
+				vector<int> rightFlankNodes;
+				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
+				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
+				
+				
+				rightFlankNodes.at(4)=node1.nNum;
+				rightFlankNodes.at(5)=node2.nNum;
+				
+				rightFlank.setNodes(rightFlankNodes);
+				elements.addElement(rightFlank);
+				/*
+				element leftFlank;
+				leftFlank.setNumber(currentNumberofElements+2);
+				vector<int> leftFlankNodes;
+				leftFlankNodes.resize(8,-1);
+				leftFlankNodes.at(0)=node5.nNum;
+				leftFlankNodes.at(1)=node6.nNum;
+				leftFlankNodes.at(2)=node7.nNum;
+				leftFlankNodes.at(3)=node8.nNum;
+				leftFlankNodes.at(4)=oldNodeNumbers.at(4);
+				leftFlankNodes.at(5)=oldNodeNumbers.at(5);
+				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
+				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlank.setNodes(leftFlankNodes);
+				elements.addElement(leftFlank);
+				
+				element middle;
+				middle.setNumber(currentNumberofElements+3);
+				vector<int> middleNodes;
+				middleNodes.resize(8,-1);
+				middleNodes.at(0)=node1.nNum;
+				middleNodes.at(1)=node2.nNum;
+				middleNodes.at(2)=node3.nNum;
+				middleNodes.at(3)=node4.nNum;
+				middleNodes.at(4)=node5.nNum;
+				middleNodes.at(5)=node6.nNum;
+				middleNodes.at(6)=node7.nNum;
+				middleNodes.at(7)=node8.nNum;
+				middle.setNodes(middleNodes);
+				elements.addElement(middle);
+				*/
+			}
+		}
+		
 		
 	}
 	
@@ -2730,15 +2984,17 @@ int main(int argc, char* argv[]) //the program starts here
 		fflush(stdout);
 		myMesh.createDCB(); //mirrors the block mesh to form a DCB
 		fflush(stdout);
-		myMesh.createCohesiveLayer(); //creates the cohesive layer
-		fflush(stdout);
+		//myMesh.createCohesiveLayer(); //creates the cohesive layer
+		//fflush(stdout);
 		myMesh.mergeNodes(); // all incident are merged into one
+		/*
 		myMesh.replicate();
 		fflush(stdout);
 		myMesh.mergeNodes(); // all incident are merged into one
 		fflush(stdout);
 		myMesh.makeSets();
 		myMesh.shrinkCohesiveLayer();
+		*/
 		fflush(stdout);		
 		writeMesh(myMesh);
 	}
@@ -2750,7 +3006,7 @@ int main(int argc, char* argv[]) //the program starts here
 	return 0;
 }	
 
-mesh parseInput(char inputFile[]) //parce the input file to a model
+mesh parseInput(char inputFile[]) //parse the input file to a model
 {
 	char line[200];
 	char search[200];
@@ -2909,287 +3165,301 @@ void writeMesh(mesh theMesh)
 		fprintf(outFile,"%d,%f,%f,%f\n",num,x,y,z);
 	}
 	fclose(outFile);
-	
 
 	outFile = fopen("elements.dat","w"); // for meshPlot in octave
+	if(theMesh.ldiv==0){fprintf(outFile,"*ELEMENT,TYPE=CPE4,ESET=ALL");}
+	else{fprintf(outFile,"*ELEMENT,TYPE=C3D8,ESET=ALL");}
 	for(unsigned int i=0;i<elements.size();i++)
 	{
 		int num=elements.at(i).eNum;
 		vector<int> nodes=elements.at(i).getNodes();
-		fprintf(outFile,"%d,%d,%d,%d,%d,%d,%d,%d,%d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+		//printf("Nodes per element %d\n",nodes.size());
+		if(nodes.size()==4)
+		{
+			fprintf(outFile,"%d,%d,%d,%d,%d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3));		
+		}
+		else if (nodes.size()==8)
+		{
+			fprintf(outFile,"%d,%d,%d,%d,%d,%d,%d,%d,%d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+		}
+		else
+		{
+			printf("Error. Elements with %d nodes not supported",nodes.size());
+		}
+		
 	}
 	fclose(outFile);
+// 	/*
+// 	// below is for ansys2abaqus
+// 	vector<int> selNodes; 
+// 	vector<int> selElements;
+	
+// 	outFile = fopen("NLIST.lis","w");
+// 	selNodes=theMesh.blockNodes;
+// 	//selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness,0);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 	{
+// 		int num=selNodes.at(i);
+// 		double x=theMesh.nodes.getNode(num).x;
+// 		double y=theMesh.nodes.getNode(num).y;
+// 		double z=theMesh.nodes.getNode(num).z;
+// 		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
+// 	}
+// 	/*selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness*2-theMesh.cohesiveThickness,-theMesh.thickness-theMesh.cohesiveThickness);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 	{
+// 		int num=selNodes.at(i);
+// 		double x=theMesh.nodes.getNode(num).x;
+// 		double y=theMesh.nodes.getNode(num).y;
+// 		double z=theMesh.nodes.getNode(num).z;
+// 		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
+// 	}*/
+// 	fclose(outFile);
+	
+	
+// 	outFile = fopen("ELIST.lis","w");
+// //	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness,0);
+// //	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
+// //	for( unsigned int i=0;i<selElements.size();i++)
+// //	{
+// //		int num=selElements.at(i);
+// //		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
+// //		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+// //	}
+// //	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness*2-theMesh.cohesiveThickness,-theMesh.thickness-theMesh.cohesiveThickness);
+// //	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
+// //	for( unsigned int i=0;i<selElements.size();i++)
+// //	{
+// //		int num=selElements.at(i);
+// //		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
+// //		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+// //	}
+// 	selElements=theMesh.blockElements;
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 	{
+// 		int num=selElements.at(i);
+// 		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
+// 		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+// 	}
+// 	fclose(outFile);
+	
+// 	//printf("debug 1\n");
+// 	outFile = fopen("cohesive.nod","w");
+// 	//vector<int> cohesiveNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness-theMesh.cohesiveThickness,-theMesh.thickness-theMesh.cohesiveThickness);
+// 	vector<int> cohesiveNodes=theMesh.cohesiveNodes;
+// 	for( unsigned int i=0;i<cohesiveNodes.size();i++)
+// 	{
+// 		int num=cohesiveNodes.at(i);
+// 		//printf("num=%d\n",num);
+// 		double x=theMesh.nodes.getNode(num).x;
+// 		double y=theMesh.nodes.getNode(num).y;
+// 		double z=theMesh.nodes.getNode(num).z;
+// 		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
+// 		//printf("%d %f %f %f 0 0 0\n",num,x,y,z);
+// 	}
+// 	fclose(outFile);
+	
+// 	//printf("debug 2\n");
+// 	outFile = fopen("bottom.nod","w");
+// 	vector<int> bottomNodes=theMesh.bottomNodes;
+// 	for( unsigned int i=0;i<bottomNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",bottomNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("cohesive.ele","w");
+// 	printf("cohesive elements:\n");
+// 	vector<int> coAndBo=add(cohesiveNodes,bottomNodes);
+// 	selElements=theMesh.elements.getElementsWithNodes(coAndBo,1); 
+// 	//selElements=theMesh.getElementsAt(-theMesh.width,0,0,theMesh.length,-theMesh.thickness-theMesh.cohesiveThickness,-theMesh.thickness);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 	{
+// 		int num=selElements.at(i);
+// 		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
+// 		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+// 	}
+// 	fclose(outFile);
+	
+// 	outFile = fopen("substrate.nod","w");
+// 	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length*theMesh.reps,-theMesh.thickness,-theMesh.thickness+theMesh.substrateThickness);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 	{
+// 		int num=selNodes.at(i);
+// 		double x=theMesh.nodes.getNode(num).x;
+// 		double y=theMesh.nodes.getNode(num).y;
+// 		double z=theMesh.nodes.getNode(num).z;
+// 		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
+// 	}
+// 	fclose(outFile);
+	
+	
+// 	outFile = fopen("substrate.ele","w");
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 	{
+// 		int num=selElements.at(i);
+// 		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
+// 		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+// 	}
+// 	fclose(outFile);
+	
+// 	outFile = fopen("film.nod","w");
+// 	selNodes=subtract(theMesh.nodes.getListOfNodes(),selNodes); //all_nodes - substrate
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 	{
+// 		int num=selNodes.at(i);
+// 		double x=theMesh.nodes.getNode(num).x;
+// 		double y=theMesh.nodes.getNode(num).y;
+// 		double z=theMesh.nodes.getNode(num).z;
+// 		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
+// 	}
+// 	fclose(outFile);
+	
+	
+// 	outFile = fopen("film.ele","w");
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,0);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 	{
+// 		int num=selElements.at(i);
+// 		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
+// 		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
+// 	}
+// 	fclose(outFile);
+	
+// 	outFile = fopen("top.nod","w");
+// 	selNodes=theMesh.nodes.nselZ(0, theMesh.tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inside.nod","w");
+// 	selNodes=theMesh.nodes.nselX(0,0, theMesh.tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("outside.nod","w");
+// 	selNodes=theMesh.nodes.nselX(-theMesh.width, -theMesh.width, theMesh.tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inlet.nod","w");
+// 	selNodes=theMesh.nodes.nselY(theMesh.length*theMesh.reps,theMesh.length*theMesh.reps, theMesh.tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inletu.nod","w");
+// 	vector<int>  lowerNodes;
+// //	lowerNodes=theMesh.nodes.nselZ(-theMesh.thickness-theMesh.cohesiveThickness,0, theMesh.tol);
+// 	selNodes=theMesh.inletUpper;
+// //	selNodes=subtract(selNodes,lowerNodes);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inletl.nod","w");
+// 	vector<int>  upperNodes;
+// 	selNodes=theMesh.inletLower;
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("outlet.nod","w");
+// 	selNodes=theMesh.nodes.nselY(0,0, theMesh.tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	double tol=theMesh.width/theMesh.wdiv/1000;
+// 	outFile = fopen("inletNodesSmall.nod","w");
+// 	selNodes=theMesh.nodes.nselXYZ(-theMesh.width-tol,-tol,theMesh.length*theMesh.reps,theMesh.length*theMesh.reps,-theMesh.thickness+tol,tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inletSmall1.nod","w");
+// 	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,-tol,theMesh.length*theMesh.reps,theMesh.length*theMesh.reps,-theMesh.thickness,0);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inletSmall2.nod","w");
+// 	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,theMesh.length*theMesh.reps,theMesh.length*theMesh.reps,-theMesh.thickness+tol,0);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("allButInAndOut.nod","w");
+// 	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0.0,0.0,theMesh.length*theMesh.reps-tol,-theMesh.thickness,-theMesh.thickness);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
+	
+// //	outFile = fopen("inletSmall1.nod","w"); //not really the inlet but the internals
+// //	selNodes=theMesh.nodes.nselXYZ(theMesh.linesOfRefinement.at(0)+theMesh.width/theMesh.wdiv+0.0000001,-0.0000001,0.0000001,theMesh.length-0.0000001,-theMesh.thickness+0.0000001,-0.0000001);
+// //	for( unsigned int i=0;i<selNodes.size();i++)
+// //		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// //	fclose(outFile);
+	
+// 	outFile = fopen("tip.ele","w");
+// 	//selNodes=theMesh.nodes.nselX(theMesh.refPoints.at(0).x,1000000, theMesh.tol);
+// 	selNodes=theMesh.nodes.nselXYZ(-theMesh.thickness*2-theMesh.tol,theMesh.tol,0-theMesh.tol,theMesh.length*theMesh.reps+theMesh.tol,-theMesh.thickness/2-theMesh.tol,theMesh.tol);
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("top.ele","w");
+// 	selNodes=theMesh.nodes.nselZ(0, theMesh.tol);
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,4);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("inletClean.ele","w");
+// 	selNodes=theMesh.nodes.nselY(theMesh.length*theMesh.reps,theMesh.length*theMesh.reps, theMesh.tol);
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,4);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("outletClean.ele","w");
+// 	selNodes=theMesh.nodes.nselY(0,0, theMesh.tol);
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,4);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("outside.ele","w");
+// 	selNodes=theMesh.nodes.nselX(-theMesh.width,-theMesh.width, theMesh.tol);
+// 	selElements=theMesh.elements.getElementsWithNodes(selNodes,0);
+// 	for( unsigned int i=0;i<selElements.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
+// 	fclose(outFile);
+	
+// 	outFile = fopen("allbutInside.nod","w");
+// 	selNodes=theMesh.nodes.nselX(-100000000,theMesh.refPoints.at(0).x, theMesh.tol);
+// 	for( unsigned int i=0;i<selNodes.size();i++)
+// 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
+// 	fclose(outFile);
 
-	// below is for ansys2abaqus
-	vector<int> selNodes; 
-	vector<int> selElements;
-	
-	outFile = fopen("NLIST.lis","w");
-	selNodes=theMesh.blockNodes;
-	//selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness,0);
-	for( unsigned int i=0;i<selNodes.size();i++)
-	{
-		int num=selNodes.at(i);
-		double x=theMesh.nodes.getNode(num).x;
-		double y=theMesh.nodes.getNode(num).y;
-		double z=theMesh.nodes.getNode(num).z;
-		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
-	}
-	/*selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness*2-theMesh.cohesiveThickness,-theMesh.thickness-theMesh.cohesiveThickness);
-	for( unsigned int i=0;i<selNodes.size();i++)
-	{
-		int num=selNodes.at(i);
-		double x=theMesh.nodes.getNode(num).x;
-		double y=theMesh.nodes.getNode(num).y;
-		double z=theMesh.nodes.getNode(num).z;
-		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
-	}*/
-	fclose(outFile);
-	
-	
-	outFile = fopen("ELIST.lis","w");
-//	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness,0);
-//	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
-//	for( unsigned int i=0;i<selElements.size();i++)
-//	{
-//		int num=selElements.at(i);
-//		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
-//		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
-//	}
-//	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness*2-theMesh.cohesiveThickness,-theMesh.thickness-theMesh.cohesiveThickness);
-//	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
-//	for( unsigned int i=0;i<selElements.size();i++)
-//	{
-//		int num=selElements.at(i);
-//		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
-//		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
-//	}
-	selElements=theMesh.blockElements;
-	for( unsigned int i=0;i<selElements.size();i++)
-	{
-		int num=selElements.at(i);
-		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
-		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
-	}
-	fclose(outFile);
-	
-	//printf("debug 1\n");
-	outFile = fopen("cohesive.nod","w");
-	//vector<int> cohesiveNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length,-theMesh.thickness-theMesh.cohesiveThickness,-theMesh.thickness-theMesh.cohesiveThickness);
-	vector<int> cohesiveNodes=theMesh.cohesiveNodes;
-	for( unsigned int i=0;i<cohesiveNodes.size();i++)
-	{
-		int num=cohesiveNodes.at(i);
-		//printf("num=%d\n",num);
-		double x=theMesh.nodes.getNode(num).x;
-		double y=theMesh.nodes.getNode(num).y;
-		double z=theMesh.nodes.getNode(num).z;
-		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
-		//printf("%d %f %f %f 0 0 0\n",num,x,y,z);
-	}
-	fclose(outFile);
-	
-	//printf("debug 2\n");
-	outFile = fopen("bottom.nod","w");
-	vector<int> bottomNodes=theMesh.bottomNodes;
-	for( unsigned int i=0;i<bottomNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",bottomNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("cohesive.ele","w");
-	printf("cohesive elements:\n");
-	vector<int> coAndBo=add(cohesiveNodes,bottomNodes);
-	selElements=theMesh.elements.getElementsWithNodes(coAndBo,1); 
-	//selElements=theMesh.getElementsAt(-theMesh.width,0,0,theMesh.length,-theMesh.thickness-theMesh.cohesiveThickness,-theMesh.thickness);
-	for( unsigned int i=0;i<selElements.size();i++)
-	{
-		int num=selElements.at(i);
-		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
-		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
-	}
-	fclose(outFile);
-	
-	outFile = fopen("substrate.nod","w");
-	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,0,theMesh.length*theMesh.reps,-theMesh.thickness,-theMesh.thickness+theMesh.substrateThickness);
-	for( unsigned int i=0;i<selNodes.size();i++)
-	{
-		int num=selNodes.at(i);
-		double x=theMesh.nodes.getNode(num).x;
-		double y=theMesh.nodes.getNode(num).y;
-		double z=theMesh.nodes.getNode(num).z;
-		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
-	}
-	fclose(outFile);
-	
-	
-	outFile = fopen("substrate.ele","w");
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
-	for( unsigned int i=0;i<selElements.size();i++)
-	{
-		int num=selElements.at(i);
-		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
-		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
-	}
-	fclose(outFile);
-	
-	outFile = fopen("film.nod","w");
-	selNodes=subtract(theMesh.nodes.getListOfNodes(),selNodes); //all_nodes - substrate
-	for( unsigned int i=0;i<selNodes.size();i++)
-	{
-		int num=selNodes.at(i);
-		double x=theMesh.nodes.getNode(num).x;
-		double y=theMesh.nodes.getNode(num).y;
-		double z=theMesh.nodes.getNode(num).z;
-		fprintf(outFile,"%d %f %f %f 0 0 0\n",num,x,y,z);
-	}
-	fclose(outFile);
-	
-	
-	outFile = fopen("film.ele","w");
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,0);
-	for( unsigned int i=0;i<selElements.size();i++)
-	{
-		int num=selElements.at(i);
-		vector<int> nodes=theMesh.elements.getElement(num).getNodes();
-		fprintf(outFile,"%d 0 0 0 0 0 %d %d %d %d %d %d %d %d\n",num,nodes.at(0),nodes.at(1),nodes.at(2),nodes.at(3),nodes.at(4),nodes.at(5),nodes.at(6),nodes.at(7));		
-	}
-	fclose(outFile);
-	
-	outFile = fopen("top.nod","w");
-	selNodes=theMesh.nodes.nselZ(0, theMesh.tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inside.nod","w");
-	selNodes=theMesh.nodes.nselX(0,0, theMesh.tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("outside.nod","w");
-	selNodes=theMesh.nodes.nselX(-theMesh.width, -theMesh.width, theMesh.tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inlet.nod","w");
-	selNodes=theMesh.nodes.nselY(theMesh.length*theMesh.reps,theMesh.length*theMesh.reps, theMesh.tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inletu.nod","w");
-	vector<int>  lowerNodes;
-//	lowerNodes=theMesh.nodes.nselZ(-theMesh.thickness-theMesh.cohesiveThickness,0, theMesh.tol);
-	selNodes=theMesh.inletUpper;
-//	selNodes=subtract(selNodes,lowerNodes);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inletl.nod","w");
-	vector<int>  upperNodes;
-	selNodes=theMesh.inletLower;
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("outlet.nod","w");
-	selNodes=theMesh.nodes.nselY(0,0, theMesh.tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	double tol=theMesh.width/theMesh.wdiv/1000;
-	outFile = fopen("inletNodesSmall.nod","w");
-	selNodes=theMesh.nodes.nselXYZ(-theMesh.width-tol,-tol,theMesh.length*theMesh.reps,theMesh.length*theMesh.reps,-theMesh.thickness+tol,tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inletSmall1.nod","w");
-	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,-tol,theMesh.length*theMesh.reps,theMesh.length*theMesh.reps,-theMesh.thickness,0);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inletSmall2.nod","w");
-	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0,theMesh.length*theMesh.reps,theMesh.length*theMesh.reps,-theMesh.thickness+tol,0);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("allButInAndOut.nod","w");
-	selNodes=theMesh.nodes.nselXYZ(-theMesh.width,0.0,0.0,theMesh.length*theMesh.reps-tol,-theMesh.thickness,-theMesh.thickness);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-	
-//	outFile = fopen("inletSmall1.nod","w"); //not really the inlet but the internals
-//	selNodes=theMesh.nodes.nselXYZ(theMesh.linesOfRefinement.at(0)+theMesh.width/theMesh.wdiv+0.0000001,-0.0000001,0.0000001,theMesh.length-0.0000001,-theMesh.thickness+0.0000001,-0.0000001);
-//	for( unsigned int i=0;i<selNodes.size();i++)
-//		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-//	fclose(outFile);
-	
-	outFile = fopen("tip.ele","w");
-	//selNodes=theMesh.nodes.nselX(theMesh.refPoints.at(0).x,1000000, theMesh.tol);
-	selNodes=theMesh.nodes.nselXYZ(-theMesh.thickness*2-theMesh.tol,theMesh.tol,0-theMesh.tol,theMesh.length*theMesh.reps+theMesh.tol,-theMesh.thickness/2-theMesh.tol,theMesh.tol);
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,1);
-	for( unsigned int i=0;i<selElements.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("top.ele","w");
-	selNodes=theMesh.nodes.nselZ(0, theMesh.tol);
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,4);
-	for( unsigned int i=0;i<selElements.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("inletClean.ele","w");
-	selNodes=theMesh.nodes.nselY(theMesh.length*theMesh.reps,theMesh.length*theMesh.reps, theMesh.tol);
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,4);
-	for( unsigned int i=0;i<selElements.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("outletClean.ele","w");
-	selNodes=theMesh.nodes.nselY(0,0, theMesh.tol);
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,4);
-	for( unsigned int i=0;i<selElements.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("outside.ele","w");
-	selNodes=theMesh.nodes.nselX(-theMesh.width,-theMesh.width, theMesh.tol);
-	selElements=theMesh.elements.getElementsWithNodes(selNodes,0);
-	for( unsigned int i=0;i<selElements.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-	fclose(outFile);
-	
-	outFile = fopen("allbutInside.nod","w");
-	selNodes=theMesh.nodes.nselX(-100000000,theMesh.refPoints.at(0).x, theMesh.tol);
-	for( unsigned int i=0;i<selNodes.size();i++)
-		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
-	fclose(outFile);
-
-	int N=theMesh.ldiv;
-	for(int j=0;j<N;j++)
-	{
-		double length=theMesh.length*theMesh.reps;
-		double ydiv=theMesh.ldiv;
-		double y_low=((double)j+0)*length/ydiv;
-		double y_high=((double)j+1)*length/ydiv;
-		char sliceName[50];
-		sprintf(sliceName,"slice%d.ele",j);
-		outFile = fopen(sliceName,"w");
-		selNodes=theMesh.nodes.nselY(y_low,y_high,theMesh.tol);
-		selElements=theMesh.esln(selNodes,1);
-		for( unsigned int i=0;i<selElements.size();i++)
-			fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-		fclose(outFile);
-	}
+// 	int N=theMesh.ldiv;
+// 	for(int j=0;j<N;j++)
+// 	{
+// 		double length=theMesh.length*theMesh.reps;
+// 		double ydiv=theMesh.ldiv;
+// 		double y_low=((double)j+0)*length/ydiv;
+// 		double y_high=((double)j+1)*length/ydiv;
+// 		char sliceName[50];
+// 		sprintf(sliceName,"slice%d.ele",j);
+// 		outFile = fopen(sliceName,"w");
+// 		selNodes=theMesh.nodes.nselY(y_low,y_high,theMesh.tol);
+// 		selElements=theMesh.esln(selNodes,1);
+// 		for( unsigned int i=0;i<selElements.size();i++)
+// 			fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
+// 		fclose(outFile);
+// 	}
 	
 	printf("Mesh written\n");
 }
