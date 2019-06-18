@@ -1,3 +1,5 @@
 *NODE,NSET=ALL
 *INCLUDE,INPUT=nodes.dat
 *INCLUDE,INPUT=elements.dat
+*include,input=slices.inp
+*include,input=sets.inp

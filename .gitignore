@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+#nodes and elements
+*.nod
+*.ele
+*.lis
+*.dat

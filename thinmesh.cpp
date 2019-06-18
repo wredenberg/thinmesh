@@ -222,6 +222,33 @@ struct nodeBox //contains a vector of nodes
 		}
 		return toBeReturned;
 	}
+
+	vector<int> nselXYZinverted(double xl,double xh,double yl,double yh,double zl,double zh) //returns the node numbers at a specific coordinate
+	{
+		vector<int> toBeReturned;
+		for(unsigned int i=0; i<nodes.size(); i++) // goes through all nodes
+		{
+			if((xh<=nodes.at(i).x || xl>=nodes.at(i).x) || (yh<=nodes.at(i).y || yl>=nodes.at(i).y) || (zh<=nodes.at(i).z || zl>=nodes.at(i).z))
+			{
+				toBeReturned.push_back(nodes.at(i).nNum);
+			}
+		}
+		return toBeReturned;
+	}
+
+	vector<int> nselXYZam(double xl,double xh,double yl,double yh,double zl,double zh) //returns the node numbers at a specific coordinate
+	{
+		vector<int> toBeReturned;
+		for(unsigned int i=0; i<nodes.size(); i++) // goes through all nodes
+		{
+			if(((xh<=nodes.at(i).x || xl>=nodes.at(i).x) || (zh<=nodes.at(i).z || zl>=nodes.at(i).z)) && (yh>=nodes.at(i).y && yl<=nodes.at(i).y))
+			{
+				toBeReturned.push_back(nodes.at(i).nNum);
+			}
+		}
+		return toBeReturned;
+	}
+	
 	
 	vector<int> getNodesToTheLeftOf(double x) //returns the node numbers of nodes to the left of x (<x)
 	{
@@ -362,6 +389,22 @@ struct nodeBox //contains a vector of nodes
 		nodes.at(i).y=nodes.at(i).y+y;
 		nodes.at(i).z=nodes.at(i).z+z;
 	}
+
+	void changeXsign()
+	{
+		for(unsigned int i=0;i<nodes.size();i++)
+		{
+			nodes.at(i).x=-nodes.at(i).x;
+		}
+	}
+	
+	void changeZsign()
+	{
+		for(unsigned int i=0;i<nodes.size();i++)
+		{
+			nodes.at(i).z=-nodes.at(i).z;
+		}
+	}
 	
 	void addNodes(vector<node> toAdd)
 	{
@@ -449,6 +492,49 @@ struct element
 			nodes.at(i)=nodes.at(i)+shift;
 		}
 	}
+
+	void mirror()
+	{
+        if(nodesPerElement==4)
+		{
+			int n0=nodes.at(0);
+			int n1=nodes.at(1);
+			int n2=nodes.at(2);
+			int n3=nodes.at(3);
+
+			nodes.at(0)=n1;
+			nodes.at(1)=n0;
+			nodes.at(2)=n3;
+			nodes.at(3)=n2;
+
+
+		}
+		else if(nodesPerElement==8)
+		{
+			int n0=nodes.at(0);
+			int n1=nodes.at(1);
+			int n2=nodes.at(2);
+			int n3=nodes.at(3);
+			int n4=nodes.at(4);
+			int n5=nodes.at(5);
+			int n6=nodes.at(6);
+			int n7=nodes.at(7);
+
+			nodes.at(0)=n1;
+			nodes.at(1)=n0;
+			nodes.at(2)=n3;
+			nodes.at(3)=n2;
+			nodes.at(4)=n5;
+			nodes.at(5)=n4;
+			nodes.at(6)=n7;
+			nodes.at(7)=n6;
+		}
+		else
+		{
+			printf("Error - can not mirror that kind of element! %d\n",nodesPerElement);
+		}
+
+	}
 	
 
 };
@@ -473,6 +559,7 @@ struct elementBox //contains a vector of elements
 //		int eNum=elementToAdd.eNum;
 //		map.push_back(eNum);
 //		elements.push_back(elementToAdd);
+		//printf("adding element %d\n",elementToAdd.eNum);
 		
 		unsigned int eNum=elementToAdd.eNum;
 		if(map.size()<=eNum)
@@ -726,8 +813,9 @@ struct elementBox //contains a vector of elements
 			coord cg;
 			cg=elements.at(i).getCenterOfGravity();
 			double tol=elements.at(i).getSize()*0.49;
+			double uptol=elements.at(i).getSize()*0.50;
 			//printf("cg=%f %f %f\n",cg.x,cg.y,cg.z);
-			if((xl<cg.x+tol) && (xh>cg.x-tol) && (yl<cg.y+tol) && (yh>cg.y-tol) && (zl<cg.z+tol) && (zh>cg.z-tol))
+			if((xl<cg.x+uptol) && (xh>cg.x-tol) && (yl<cg.y+uptol) && (yh>cg.y-uptol) && (zl<cg.z+uptol) && (zh>cg.z-tol))
 				elementList.push_back(elements.at(i).eNum);		
 		}
 
@@ -807,7 +895,15 @@ struct elementBox //contains a vector of elements
 			addElement(toAdd.at(i));
 		}
 	}
-			
+
+	void mirror() //change the node numbering of all elements in box
+	{
+		for(unsigned int i=0; i<elements.size();i++)
+		{
+			elements.at(i).mirror();
+		}
+	}
+		
 };
 
 struct corner
@@ -833,7 +929,7 @@ struct mesh
 	double width;
 	double tol;
 	int ldiv,wdiv,tdiv,reps;
-	bool dcb;
+	bool dcb,toMirror;
 	bool flatCohesiveLayer;
 	
 	int divisions;
@@ -860,6 +956,7 @@ struct mesh
 		cohesiveThickness=-1;
 		cohesiveFraction=1; //assume no crack
 		dcb=false;
+		toMirror=false; //if the mesh should be mirrored
 		flatCohesiveLayer=false;
 	}
 
@@ -975,8 +1072,8 @@ struct mesh
 			printf("done.\n");
 			
 			//transmogrifying
-			toBeTransmogedX=getElementsAt(ref.x,ref.x,-1.0,1000000.0,ref.z,1000000.0);
-			toBeTransmogedZ=getElementsAt(ref.x,100000000,-1.0,1000000.0,ref.z,ref.z);
+			toBeTransmogedX=getElementsAt(ref.x-tol,ref.x+tol,-1.0,1000000.0,ref.z,1000000.0);
+			toBeTransmogedZ=getElementsAt(ref.x,100000000,-1.0,1000000.0,ref.z-tol,ref.z+tol);
 
 			//printf("toBeTransmogedX %d",toBeTransmogedX.size());
 			
@@ -1079,10 +1176,15 @@ struct mesh
 	{
 		dcb=true;
 	}
+
+	void toggleMirror()
+	{
+		toMirror=true;
+	}
 	
 	void splitElement(int eToSplit, int type) // Splitts an element into more elements
 	{
-		printf("split element %d, type %d, ldiv %d",eToSplit,type,ldiv);
+		//printf("split element %d, type %d, ldiv %d",eToSplit,type,ldiv);
 		if(ldiv>0) //3D elements
 		{
 			int tdiv=1;
@@ -1193,20 +1295,17 @@ struct mesh
 				printf("Error in split element. Type of split unknown. (type=%d)",type);
 			
 			
-			printf("Splitting element %d into %d elements",eToSplit,tdiv*ldiv*wdiv);
+			//printf("Splitting element %d into %d elements",eToSplit,tdiv*ldiv*wdiv);
 			
 			node firstNode;
 			element elementToSplit;
 			elementToSplit=elements.getElement(eToSplit);
 			int firstNodeNum=elementToSplit.getNodes().at(0); // the first node of the element that is about to be splitted
 			firstNode=nodes.getNode(firstNodeNum);
-			printf("first nodenum %d\n",firstNodeNum);
 			double width=nodes.getNode(elementToSplit.getNodes().at(1)).x-nodes.getNode(elementToSplit.getNodes().at(0)).x;
-			printf("debug2");
-			double length=nodes.getNode(elementToSplit.getNodes().at(3)).y-nodes.getNode(elementToSplit.getNodes().at(0)).y;
-			printf("debug3");
-			//double thickness=nodes.getNode(elementToSplit.getNodes().at(5)).z-nodes.getNode(elementToSplit.getNodes().at(0)).z;
-			printf("debug4");
+			//double length=nodes.getNode(elementToSplit.getNodes().at(3)).y-nodes.getNode(elementToSplit.getNodes().at(0)).y;
+			double thickness=nodes.getNode(elementToSplit.getNodes().at(3)).z-nodes.getNode(elementToSplit.getNodes().at(0)).z;
+
 			
 			int current_nNum=nodes.getHighestNodeNumber()+1;
 			int highestNodeNumber=current_nNum;
@@ -1220,7 +1319,8 @@ struct mesh
 						//printf("%d,%d,%d",k,j,i)
 						currentNode.nNum=current_nNum;
 						currentNode.x= width*i/((double) wdiv)+firstNode.x;
-						currentNode.y= length*j/((double) ldiv)+firstNode.y;
+						//currentNode.y= length*j/((double) ldiv)+firstNode.y;
+						currentNode.y=firstNode.y;
 						currentNode.z= thickness*k/((double) tdiv)+firstNode.z;
 						nodes.addNode(currentNode);
 						current_nNum++;
@@ -1240,13 +1340,14 @@ struct mesh
 						
 						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
 						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
-						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						//currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
+						//currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k-1)*(ldiv+1)*(wdiv+1));
 						
-						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						
 						currentElement.nodes.push_back((i+1)+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-						currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
-						currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						currentElement.nodes.push_back(i+(j-1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						//currentElement.nodes.push_back((i+1)+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
+						//currentElement.nodes.push_back(i+(j-1+1)*(wdiv+1)+(k)*(ldiv+1)*(wdiv+1));
 
 						
 						elements.addElement(currentElement);
@@ -2652,14 +2753,14 @@ struct mesh
 				node node3;
 				node3.nNum=nodes.size();
 				node3.x=w+oldNodes.at(0).x+offset;
-				node3.z=h/3+oldNodes.at(0).z;
+				node3.z=2*h/3+oldNodes.at(0).z;
 				node3.y=oldNodes.at(3).y;
 				nodes.addNode(node3);
 		
 				node node4;
 				node4.nNum=nodes.size();
 				node4.x=w/2+oldNodes.at(0).x+offset;
-				node4.z=h/3+oldNodes.at(0).z;
+				node4.z=2*h/3+oldNodes.at(0).z;
 				node4.y=oldNodes.at(3).y;
 				nodes.addNode(node4);		
 				
@@ -2678,47 +2779,41 @@ struct mesh
 				element rightFlank;
 				rightFlank.setNumber(currentNumberofElements+1);
 				vector<int> rightFlankNodes;
-				rightFlankNodes.resize(8,-1);
+				rightFlankNodes.resize(4,-1);
 				rightFlankNodes.at(0)=oldNodeNumbers.at(0);
 				rightFlankNodes.at(1)=oldNodeNumbers.at(1);
 				
 				
-				rightFlankNodes.at(4)=node1.nNum;
-				rightFlankNodes.at(5)=node2.nNum;
+				rightFlankNodes.at(2)=node2.nNum;
+				rightFlankNodes.at(3)=node1.nNum;
 				
 				rightFlank.setNodes(rightFlankNodes);
 				elements.addElement(rightFlank);
-				/*
+				
 				element leftFlank;
 				leftFlank.setNumber(currentNumberofElements+2);
 				vector<int> leftFlankNodes;
-				leftFlankNodes.resize(8,-1);
-				leftFlankNodes.at(0)=node5.nNum;
-				leftFlankNodes.at(1)=node6.nNum;
-				leftFlankNodes.at(2)=node7.nNum;
-				leftFlankNodes.at(3)=node8.nNum;
-				leftFlankNodes.at(4)=oldNodeNumbers.at(4);
-				leftFlankNodes.at(5)=oldNodeNumbers.at(5);
-				leftFlankNodes.at(6)=oldNodeNumbers.at(6);
-				leftFlankNodes.at(7)=oldNodeNumbers.at(7);
+				leftFlankNodes.resize(4,-1);
+				leftFlankNodes.at(0)=node4.nNum;
+				leftFlankNodes.at(1)=node3.nNum;
+				leftFlankNodes.at(2)=oldNodeNumbers.at(2);
+				leftFlankNodes.at(3)=oldNodeNumbers.at(3);
+				
 				leftFlank.setNodes(leftFlankNodes);
 				elements.addElement(leftFlank);
 				
 				element middle;
 				middle.setNumber(currentNumberofElements+3);
 				vector<int> middleNodes;
-				middleNodes.resize(8,-1);
+				middleNodes.resize(4,-1);
 				middleNodes.at(0)=node1.nNum;
 				middleNodes.at(1)=node2.nNum;
 				middleNodes.at(2)=node3.nNum;
 				middleNodes.at(3)=node4.nNum;
-				middleNodes.at(4)=node5.nNum;
-				middleNodes.at(5)=node6.nNum;
-				middleNodes.at(6)=node7.nNum;
-				middleNodes.at(7)=node8.nNum;
+
 				middle.setNodes(middleNodes);
 				elements.addElement(middle);
-				*/
+				
 			}
 		}
 		
@@ -2858,15 +2953,15 @@ struct mesh
 	{
 		if(dcb)
 		{
-		printf("Creating DCB...\n");
-		nodeBox newNodes;
-		elementBox newElements;
-		
-		newNodes=nodes;
-		newElements=elements;
-		
-		int numberOfNodes=nodes.getHighestNodeNumber();
-		int numberOfElements=elements.getHighestElementNumber();
+			printf("Creating DCB...\n");
+			nodeBox newNodes;
+			elementBox newElements;
+			
+			newNodes=nodes;
+			newElements=elements;
+			
+			int numberOfNodes=nodes.getHighestNodeNumber();
+			int numberOfElements=elements.getHighestElementNumber();
 		
 			printf("Shifting numbers %d\n",numberOfNodes);
 			newNodes.shiftNumbers(numberOfNodes);
@@ -2882,6 +2977,66 @@ struct mesh
 			//printf("Adding elements.\n");
 			elements.addElements(newElements.getElements());
 		}
+	}
+
+	void mirror()
+	{
+		if(toMirror)
+		{
+			printf("Mirroring mesh...\n");
+			nodeBox newNodes;
+			elementBox newElements;
+			
+			newNodes=nodes;
+			newElements=elements;
+			
+			int numberOfNodes=nodes.getHighestNodeNumber();
+			int numberOfElements=elements.getHighestElementNumber();
+		
+			printf("Shifting numbers %d\n",numberOfNodes);
+			newNodes.shiftNumbers(numberOfNodes);
+			//printf("Translating nodes\n");
+			newNodes.changeXsign();
+			//printf("Adding nodes\n");
+			nodes.addNodes(newNodes.getNodes());
+			
+			//printf("Shifting element numbers\n");
+			newElements.shiftElementNumbers(numberOfElements);
+			//printf("Shifting node numbers in elements\n");
+			newElements.shiftNodeNumbers(numberOfNodes);
+			//printf("Adding elements.\n");
+			newElements.mirror(); //change the numbering
+			elements.addElements(newElements.getElements());
+		}
+        
+		if(toMirror) //temporary (to mesh in Z direction)
+		{
+			printf("Mirroring mesh...\n");
+			nodeBox newNodes;
+			elementBox newElements;
+			
+			newNodes=nodes;
+			newElements=elements;
+			
+			int numberOfNodes=nodes.getHighestNodeNumber();
+			int numberOfElements=elements.getHighestElementNumber();
+		
+			printf("Shifting numbers %d\n",numberOfNodes);
+			newNodes.shiftNumbers(numberOfNodes);
+			//printf("Translating nodes\n");
+			newNodes.changeZsign();
+			//printf("Adding nodes\n");
+			nodes.addNodes(newNodes.getNodes());
+			
+			//printf("Shifting element numbers\n");
+			newElements.shiftElementNumbers(numberOfElements);
+			//printf("Shifting node numbers in elements\n");
+			newElements.shiftNodeNumbers(numberOfNodes);
+			//printf("Adding elements.\n");
+			newElements.mirror(); //change the numbering
+			elements.addElements(newElements.getElements());
+		}
+        
 	}
 	void createCohesiveLayer()
 	{
@@ -2962,6 +3117,46 @@ struct mesh
 		blockElements=subtract(elements.getNumbers(),cohesiveElements);
 		blockNodes=nodes.nselXYZ(-width-tol,0+tol,0-tol,length*reps+tol,-thickness-tol,0+tol);
 	}
+
+	void stretch(double start, double stop) //stretch mesh in z and x directions. (Mostly for AM)
+	{
+		vector<int> nodelist=nodes.getListOfNodes();
+
+		
+
+		//printf("xscale %f\n",xscale);
+		//iterate over nodes
+		for(unsigned int i=0; i<nodelist.size(); i++) // goes through all nodes
+		{
+			int nNum=nodelist[i];
+			node n = nodes.getNode(nNum);
+			//if(n.x<-start or n.z<-start)
+			//{
+				double xscale=stop/width;
+				double zscale=stop/thickness;
+				double xtrans=xscale*(n.x+start)-n.x;
+				double ztrans=zscale*(n.z+start)-n.z;
+				nodes.translateNode(nNum,xtrans,0,ztrans);
+				//printf("x,xtrans %f,%f\n",n.x,xtrans);
+			//}
+		}
+
+	}
+
+	void flatten(double factor)
+	{
+		vector<int> nodelist=nodes.getListOfNodes();
+		for(unsigned int i=0; i<nodelist.size(); i++) // goes through all nodes
+		{
+			
+			int nNum=nodelist[i];
+			node n = nodes.getNode(nNum);
+
+			double newPos=n.y*factor;
+			double ytrans=newPos-n.y;
+			nodes.translateNode(nNum,0,ytrans,0);
+		}
+	}
 	
 };
 
@@ -2983,6 +3178,8 @@ int main(int argc, char* argv[]) //the program starts here
 		myMesh.refineMesh();
 		fflush(stdout);
 		myMesh.createDCB(); //mirrors the block mesh to form a DCB
+		myMesh.mergeNodes();
+		myMesh.mirror();
 		fflush(stdout);
 		//myMesh.createCohesiveLayer(); //creates the cohesive layer
 		//fflush(stdout);
@@ -2992,10 +3189,13 @@ int main(int argc, char* argv[]) //the program starts here
 		fflush(stdout);
 		myMesh.mergeNodes(); // all incident are merged into one
 		fflush(stdout);
-		myMesh.makeSets();
-		myMesh.shrinkCohesiveLayer();
 		*/
-		fflush(stdout);		
+		myMesh.makeSets();
+		//myMesh.shrinkCohesiveLayer();
+		
+		fflush(stdout);
+		//myMesh.stretch(0.1,2.5);	
+		myMesh.flatten(0.066000066);	
 		writeMesh(myMesh);
 	}
 	else
@@ -3019,6 +3219,7 @@ mesh parseInput(char inputFile[]) //parse the input file to a model
 	char cohesiveMarker[] = {"*cohesive"};
 	char substrateMarker[] = {"*substrate"};
 	char dcbMarker[] = {"*dcb"};
+	char mirrorMarker[] = {"*mirror"};
 
 	FILE *infile;
 	infile = fopen(inputFile,"r");
@@ -3119,6 +3320,11 @@ mesh parseInput(char inputFile[]) //parse the input file to a model
 			printf("\n");
 			theMesh.setRefinement(refs); 
 		}
+		
+		if (strcmp(search,mirrorMarker)==0)
+		{
+			theMesh.toggleMirror();
+		}
 	}
 
 	fclose(infile);
@@ -3167,8 +3373,8 @@ void writeMesh(mesh theMesh)
 	fclose(outFile);
 
 	outFile = fopen("elements.dat","w"); // for meshPlot in octave
-	if(theMesh.ldiv==0){fprintf(outFile,"*ELEMENT,TYPE=CPE4,ESET=ALL");}
-	else{fprintf(outFile,"*ELEMENT,TYPE=C3D8,ESET=ALL");}
+	if(theMesh.ldiv==0){fprintf(outFile,"*ELEMENT,TYPE=CPE4,ELSET=ALL\n");}
+	else{fprintf(outFile,"*ELEMENT,TYPE=C3D8,ELSET=ALL\n");}
 	for(unsigned int i=0;i<elements.size();i++)
 	{
 		int num=elements.at(i).eNum;
@@ -3191,8 +3397,8 @@ void writeMesh(mesh theMesh)
 	fclose(outFile);
 // 	/*
 // 	// below is for ansys2abaqus
-// 	vector<int> selNodes; 
-// 	vector<int> selElements;
+ 	vector<int> selNodes; 
+ 	vector<int> selElements;
 	
 // 	outFile = fopen("NLIST.lis","w");
 // 	selNodes=theMesh.blockNodes;
@@ -3443,23 +3649,106 @@ void writeMesh(mesh theMesh)
 // 	for( unsigned int i=0;i<selNodes.size();i++)
 // 		fprintf(outFile,"%d 0 0 0 0 0 0\n",selNodes.at(i));
 // 	fclose(outFile);
+	
+	outFile = fopen("slices.inp","w");
+	int N=theMesh.ldiv;
+	for(int j=0;j<N;j++)
+	{
+		double length=theMesh.length*theMesh.reps*0.066000066;
+		
+		double ydiv=theMesh.ldiv;
+		double y_low=((double)j+0)*length/ydiv;
+		//double y_low_heat=((double)j-3)*length/ydiv;
+		double y_low_heat=((double)j-1)*length/ydiv;
+		double y_high=((double)j+1)*length/ydiv;
+		char sliceName[50];
+		sprintf(sliceName,"internal_slice%d",j);
+		fprintf(outFile,"*ELSET,ELSET=%s\n",sliceName);
+		
+		//selNodes=theMesh.nodes.nselY(y_low,y_high,theMesh.tol);
+		selNodes=theMesh.nodes.nselXYZ(-1-theMesh.tol*10,1+theMesh.tol*10,y_low-theMesh.tol,y_high+theMesh.tol,-1-theMesh.tol*10,1+theMesh.tol*10);
+		selElements=theMesh.esln(selNodes,1);
+		for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+		fprintf(outFile,"*NSET,NSET=%s\n",sliceName);
+		for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
 
-// 	int N=theMesh.ldiv;
-// 	for(int j=0;j<N;j++)
-// 	{
-// 		double length=theMesh.length*theMesh.reps;
-// 		double ydiv=theMesh.ldiv;
-// 		double y_low=((double)j+0)*length/ydiv;
-// 		double y_high=((double)j+1)*length/ydiv;
-// 		char sliceName[50];
-// 		sprintf(sliceName,"slice%d.ele",j);
-// 		outFile = fopen(sliceName,"w");
-// 		selNodes=theMesh.nodes.nselY(y_low,y_high,theMesh.tol);
-// 		selElements=theMesh.esln(selNodes,1);
-// 		for( unsigned int i=0;i<selElements.size();i++)
-// 			fprintf(outFile,"%d 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",selElements.at(i));
-// 		fclose(outFile);
-// 	}
+		sprintf(sliceName,"internal_heat_slice%d",j);
+		fprintf(outFile,"*ELSET,ELSET=%s\n",sliceName);
+		//selNodes=theMesh.nodes.nselY(y_low_heat,y_high,theMesh.tol);
+		selNodes=theMesh.nodes.nselXYZ(-1-theMesh.tol*10,1+theMesh.tol*10,y_low_heat-theMesh.tol,y_high+theMesh.tol,-1-theMesh.tol*10,1+theMesh.tol*10);
+		selElements=theMesh.esln(selNodes,1);
+		for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+		fprintf(outFile,"*NSET,NSET=%s\n",sliceName);
+		for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+
+		sprintf(sliceName,"external_slice%d",j);
+		fprintf(outFile,"*ELSET,ELSET=%s\n",sliceName);
+		//selNodes=theMesh.nodes.nselY(y_low,y_high,theMesh.tol);
+		selNodes=theMesh.nodes.nselXYZam(-1+theMesh.tol,1-theMesh.tol,y_low-theMesh.tol,y_high+theMesh.tol,-1+theMesh.tol,1-theMesh.tol);
+		selElements=theMesh.esln(selNodes,1);
+		for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+		fprintf(outFile,"*NSET,NSET=%s\n",sliceName);
+		for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+
+		sprintf(sliceName,"external_heat_slice%d",j);
+		fprintf(outFile,"*ELSET,ELSET=%s\n",sliceName);
+		//selNodes=theMesh.nodes.nselY(y_low_heat,y_high,theMesh.tol);
+		selNodes=theMesh.nodes.nselXYZam(-1+theMesh.tol,1-theMesh.tol,y_low_heat-theMesh.tol,y_high+theMesh.tol,-1+theMesh.tol,1-theMesh.tol);
+		selElements=theMesh.esln(selNodes,1);
+		for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+		fprintf(outFile,"*NSET,NSET=%s\n",sliceName);
+		for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+
+	}
+	fclose(outFile);
+
+	outFile = fopen("sets.inp","w");
+	selNodes=theMesh.nodes.nselY(0,0,theMesh.tol);
+	fprintf(outFile,"*NSET,NSET=botNodes\n");
+	for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+	
+	selNodes=theMesh.nodes.nselY(theMesh.length*0.066000066,theMesh.length*0.066000066,theMesh.tol);
+	fprintf(outFile,"*NSET,NSET=topNodes\n");
+	for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+	
+	selNodes=theMesh.nodes.nselXYZ(-1.0-theMesh.tol*10,1.0+theMesh.tol*10,-1000000,100000,-1.0-theMesh.tol*10,1.0+theMesh.tol*10);
+	selElements=theMesh.esln(selNodes,1);
+	fprintf(outFile,"*NSET,NSET=internal\n");
+	for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+	fprintf(outFile,"*ELSET,ELSET=internal\n");
+	for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+	
+	selNodes=theMesh.nodes.nselXYZ(-0.5-theMesh.tol*10,0.5+theMesh.tol*10,-1000000,100000,-0.5-theMesh.tol*10,0.5+theMesh.tol*10);
+	selElements=theMesh.esln(selNodes,1);
+	fprintf(outFile,"*NSET,NSET=core\n");
+	for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+	fprintf(outFile,"*ELSET,ELSET=core\n");
+	for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+
+	selNodes=theMesh.nodes.nselXYZinverted(-1.0,1.0,-1000000,100000,-1.0,1.0);
+	selElements=theMesh.esln(selNodes,1);
+	fprintf(outFile,"*NSET,NSET=external\n");
+	for( unsigned int i=0;i<selNodes.size();i++)
+		 	fprintf(outFile,"%d\n",selNodes.at(i));
+	fprintf(outFile,"*ELSET,ELSET=external\n");
+	for( unsigned int i=0;i<selElements.size();i++)
+		 	fprintf(outFile,"%d\n",selElements.at(i));
+
+	fclose(outFile);
 	
 	printf("Mesh written\n");
 }
