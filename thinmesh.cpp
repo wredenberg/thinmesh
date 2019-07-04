@@ -1085,11 +1085,16 @@ struct mesh
 			vector<int> toBeTransmogedZ;
 			vector<int> toBeSplitted;
 			
+			
 			printf("Updating center of gravity..\n");
 			elements.updateCenterOfGravity(nodes);
 			printf("done.\n");
 			
+			
+			
+			
 			//transmogrifying
+			printf("ref.x, %f\n",ref.x);
 			toBeTransmogedX=getElementsAt(ref.x-tol,ref.x+tol,-1.0,1000000.0,ref.z,1000000.0);
 			toBeTransmogedZ=getElementsAt(ref.x,100000000,-1.0,1000000.0,ref.z-tol,ref.z+tol);
 
@@ -1128,7 +1133,7 @@ struct mesh
 				transmogElements(cornerElementNumbers,4);
 			
 			splitElements(toBeSplitted,refType);
-			
+			mergeNodes();
 			
 		}
 
@@ -3026,7 +3031,7 @@ struct mesh
 			newElements.mirror(); //change the numbering
 			elements.addElements(newElements.getElements());
 		}
-        
+        /*
 		if(toMirror) //temporary (to mesh in Z direction)
 		{
 			printf("Mirroring mesh...\n");
@@ -3053,7 +3058,7 @@ struct mesh
 			//printf("Adding elements.\n");
 			newElements.mirror(); //change the numbering
 			elements.addElements(newElements.getElements());
-		}
+		}*/
         
 	}
 	void createCohesiveLayer()
@@ -3213,7 +3218,7 @@ int main(int argc, char* argv[]) //the program starts here
 		
 		fflush(stdout);
 		//myMesh.stretch(0.1,2.5);	
-		myMesh.flatten(0.066000066);	
+		//myMesh.flatten(0.066000066);	
 		writeMesh(myMesh);
 	}
 	else

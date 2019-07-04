@@ -1,11 +1,12 @@
 *width
-40
+100
 *length
 0.0
 *thickness
 30
 *divisions
-30
+5
 *mirror
 *refine
--13.1,-10000,1
+-50,-10000,1
+-20,-10000,1
