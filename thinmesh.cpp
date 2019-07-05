@@ -3396,8 +3396,8 @@ void writeMesh(mesh theMesh)
 	fclose(outFile);
 
 	outFile = fopen("elements.dat","w"); // for meshPlot in octave
-	if(theMesh.ldiv==0){fprintf(outFile,"*ELEMENT,TYPE=CPE4,ELSET=ALL\n");}
-	else{fprintf(outFile,"*ELEMENT,TYPE=C3D8,ELSET=ALL\n");}
+	//if(theMesh.ldiv==0){fprintf(outFile,"*ELEMENT,TYPE=CPE4,ELSET=ALL\n");}
+	//else{fprintf(outFile,"*ELEMENT,TYPE=C3D8,ELSET=ALL\n");}
 	for(unsigned int i=0;i<elements.size();i++)
 	{
 		int num=elements.at(i).eNum;
